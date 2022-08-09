@@ -14,10 +14,15 @@ If you use Bugfender in a platform other than iOS or Android, any calls to Bugfe
 ## How to update the libraries
 
 To update the Android library:
- * Download the Bugfender Android SDK aar file
- * Replace it in your project in Assets/Plugins/Android 
+ * Download the [Bugfender Android SDK aar file](https://search.maven.org/search?q=g:com.bugfender.sdk)
+ * Delete the current file in `Assets/Plugins/Android` and replace it with the .aar file just downloaded
 
 To update the iOS framework: 
- * Download the latest Bugfender iOS SDK release: static-lib.zip
- * Unzip it
- * Replace it in your project in Assets/Plugins/iOS 
+ * Download the latest [Bugfender iOS SDK release](https://github.com/bugfender/BugfenderSDK-iOS/releases): `static-lib.zip`
+ * Under `Assets/Plugins/iOS`, delete all items except `BugfenderBridge`
+ * Unzip the `static-lib.zip` file and add its contents to `Assets/Plugins/iOS`
+ * Edit the `libBugfenderSDK` item and add the following **Framework Dependencies**: `MobileCoreServices` and `Security`
+
+## Exporting the `.unitypackage`
+
+ * Run `./export.sh`
