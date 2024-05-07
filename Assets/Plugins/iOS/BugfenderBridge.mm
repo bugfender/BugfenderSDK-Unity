@@ -1,5 +1,5 @@
 #import <Foundation/Foundation.h>
-#import "BugfenderSDK.h"
+#import <BugfenderSDK/BugfenderSDK.h>
 
 char* convertNSStringToCString(const NSString* nsString)
 {
