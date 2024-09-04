@@ -1,4 +1,4 @@
-# BugfenderSDK-Unity
+iOS# BugfenderSDK-Unity
 
 Bugfender is compatible with Unity iOS and Android platforms. We have made an asset package to adapt the native Bugfender iOS and Android SDKs to the interface required by Unity.
 
@@ -30,6 +30,6 @@ To update the iOS framework:
  * Under `Assets/Plugins/iOS`, delete the current `BugfenderSDK.xcframework` and replace it with the one you just downloaded (keep `BugfenderBridge.mm`)
  * Edit the `BugfenderSDK.xcframework` item and, under the **iOS Platform settings**, add the following **Framework Dependencies**: `MobileCoreServices` and `Security`; and check **Add to Embedded Binaries**.
 
-## Exporting the `.unitypackage`
+### Exporting the `.unitypackage`
 
  * Run `./export.sh`
