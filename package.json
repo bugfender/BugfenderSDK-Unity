@@ -1,0 +1,17 @@
+{
+  "name": "com.bugfender.unity",
+  "version": "0.1.0",
+  "displayName": "Bugfender",
+  "description": "Unity bindings for the native Bugfender iOS and Android SDKs",
+  "unity": "2022.3",
+  "documentationUrl": "https://docs.bugfender.com/docs/platforms/hybrid-platforms/bugfender-for-unity",
+  "changelogUrl": "https://github.com/bugfender/BugfenderSDK-Unity/releases",
+  "license": "MIT",
+  "dependencies": {
+  },
+  "author": {
+    "name": "Bugfender Team",
+    "email": "support@bugfender.com",
+    "url": "https://bugfender.com"
+  }
+}
