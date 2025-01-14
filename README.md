@@ -30,3 +30,6 @@ By default, the latest compatible versions are used. If you would like to tweak 
 
 * For iOS: `Editor/IOSProjectBuildCustomizer.cs`
 * For Android: `Runtime/Plugins/Android/Bugfender.androidlib/build.gradle`
+
+## Example project
+Check out this proejct to see Bugfender in action: https://github.com/bugfender/unity-demo
