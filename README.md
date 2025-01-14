@@ -10,7 +10,7 @@ To use Bugfender in your Unity project, follow these steps:
  * Browse to the Package Manager panel (**Window** menu > **Package Manager**)
  * Press the **Add (+)** button and **Add package from git URL...**
  * Enter the URL: <code>https://github.com/bugfender/BugfenderSDK-Unity.git#2.0.0-alpha.0</code>
- * From the **Project** panel, drag the **Packages** / **Bugfender** / **Prefabs** / **Bugfender** prefab to your main scene. 
+ * From the **Project** panel, drag the **Packages** / **Bugfender** / **Bugfender** prefab to your main scene. 
  * Set the app key in the **Inspector** panel.
  * You can use the <code>Bugfender.Log()</code> method to write logs.
 
