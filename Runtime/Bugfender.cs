@@ -8,6 +8,7 @@ public class Bugfender : MonoBehaviour {
     public bool ENABLE_UI_EVENT_LOGGING = false;
     public bool ENABLE_CRASH_REPORTING = true;
     public bool HIDE_DEVICE_NAME = false;
+    public bool AUTO_ANDROID_ID = false;
     public bool PRINT_TO_CONSOLE = false;
     public string API_URL;
     public string BASE_URL;
@@ -80,7 +81,7 @@ public class Bugfender : MonoBehaviour {
                                         if(BASE_URL.Length > 0) {
                                                 bugfender.CallStatic ("setBaseUrl", BASE_URL );
                                         }
-					bugfender.CallStatic ("init", currentActivity, APP_KEY, PRINT_TO_CONSOLE );
+					bugfender.CallStatic ("init", currentActivity, APP_KEY, PRINT_TO_CONSOLE, AUTO_ANDROID_ID);
                                         if(ENABLE_UI_EVENT_LOGGING) {
                                                 var application = currentActivity.Call<AndroidJavaObject>("getApplication");
                                                 bugfender.CallStatic ("enableUIEventLogging", application);

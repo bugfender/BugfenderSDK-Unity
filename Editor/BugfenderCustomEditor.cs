@@ -9,6 +9,7 @@ public class BugfenderCustomEditor : Editor
     private SerializedProperty m_EnableUIEventLogging;
     private SerializedProperty m_EnableCrashReporting;
     private SerializedProperty m_HideDeviceName;
+    private SerializedProperty m_AutoAndroidID;
     private SerializedProperty m_PrintToConsole;
     private SerializedProperty m_ApiURL;
     private SerializedProperty m_BaseURL;
@@ -21,6 +22,7 @@ public class BugfenderCustomEditor : Editor
         m_EnableUIEventLogging = serializedObject.FindProperty("ENABLE_UI_EVENT_LOGGING");
         m_EnableCrashReporting = serializedObject.FindProperty("ENABLE_CRASH_REPORTING");
         m_HideDeviceName = serializedObject.FindProperty("HIDE_DEVICE_NAME");
+        m_AutoAndroidID = serializedObject.FindProperty("AUTO_ANDROID_ID");
         m_PrintToConsole = serializedObject.FindProperty("PRINT_TO_CONSOLE");
         m_ApiURL = serializedObject.FindProperty("API_URL");
         m_BaseURL = serializedObject.FindProperty("BASE_URL");
@@ -44,6 +46,7 @@ public class BugfenderCustomEditor : Editor
         EditorGUILayout.PropertyField(m_EnableUIEventLogging, new GUIContent("Enable UI Event Logging"));
         EditorGUILayout.PropertyField(m_EnableCrashReporting, new GUIContent("Enable Crash Reporting"));
         EditorGUILayout.PropertyField(m_HideDeviceName, new GUIContent("Hide device name"));
+        EditorGUILayout.PropertyField(m_AutoAndroidID, new GUIContent("Auto-fetch Android ID"));
         EditorGUILayout.PropertyField(m_PrintToConsole, new GUIContent("Print to console"));
         EditorGUILayout.PropertyField(m_ApiURL, new GUIContent("API URL (optional)"));
         EditorGUILayout.PropertyField(m_BaseURL, new GUIContent("Base URL (optional)"));
@@ -58,11 +61,11 @@ public class BugfenderCustomEditor : Editor
         EditorGUILayout.SelectableLabel("Utils.ForceCrash(ForcedCrashCategory.Abort);");
         if (GUILayout.Button("Documentation", GUILayout.ExpandWidth(true)))
         {
-            Application.OpenURL("https://support.bugfender.com/en/articles/118148-can-i-use-bugfender-with-unity");
+            Application.OpenURL("https://docs.bugfender.com/docs/platforms/hybrid-platforms/bugfender-for-unity");
         }
         
         serializedObject.ApplyModifiedProperties();
-        //Repaint(); // uncomment while editing this file
+        Repaint(); // uncomment while editing this file
     }
 
 }

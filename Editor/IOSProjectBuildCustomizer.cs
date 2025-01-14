@@ -25,7 +25,7 @@ public class IOSProjectBuildCustomizer
         string packageGuid = pbxProject.AddRemotePackageReferenceAtVersionUpToNextMajor("https://github.com/bugfender/BugfenderSDK-iOS", "2.0.0");
 
         // Add the Remote Package to the Xcode project
-        pbxProject.AddRemotePackageFrameworkToProject(pbxProject.GetUnityMainTargetGuid(), "BugfenderLibrary", packageGuid, false /* required dependency */);
+        pbxProject.AddRemotePackageFrameworkToProject(pbxProject.GetUnityFrameworkTargetGuid(), "BugfenderLibrary", packageGuid, false /* required dependency */);
       
         // Apply changes to the pbxproj file
         pbxProject.WriteToFile(projectPath);
