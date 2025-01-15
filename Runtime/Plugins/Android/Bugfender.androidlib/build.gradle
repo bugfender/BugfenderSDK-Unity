@@ -1,0 +1,14 @@
+apply plugin: 'com.android.library'
+
+repositories {
+    mavenCentral()
+}
+
+android {
+    namespace "com.bugfender.unity.androidlib"
+    compileSdk 34
+}
+
+dependencies {
+    implementation 'com.bugfender.sdk:android:3.+'
+}
