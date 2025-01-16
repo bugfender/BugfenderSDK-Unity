@@ -16,10 +16,10 @@ To use Bugfender in your Unity project, follow these steps:
 
 If your game has several scenes, you only need to add Bugfender once, on the first scene that gets executed.
 
-If you use Bugfender in a platform other than iOS or Android, any calls to Bugfender will be ignored. Other than that, your application will keep working as usual. Please note the WebGL platform is not supported yet, although we plan to support it in the future.
+If you use Bugfender on a platform other than iOS or Android, any calls to Bugfender will be ignored. Other than that, your application will keep working as usual. Please note that the WebGL platform is not yet supported, although we plan to support it in the future.
 
 ### Script Execution Order
-You want the Bugfender SDK to initialize early to capture as many logs and errors as possible. Therefore, you can tweak the execution order to make sure it runs before other scripts. By default, it starts with priority `-1` (lowest runs first).
+You want the Bugfender SDK to initialize early to capture as many logs and errors as possible. Therefore, you can tweak the execution order to ensure it runs before other scripts. It starts with priority `-1` (lowest runs first) by default.
 
 You can change the priority in the **Project Settings** > **Script Execution Order**.
 
@@ -32,4 +32,4 @@ By default, the latest compatible versions are used. If you would like to tweak 
 * For Android: `Runtime/Plugins/Android/Bugfender.androidlib/build.gradle`
 
 ## Example project
-Check out this proejct to see Bugfender in action: https://github.com/bugfender/unity-demo
+Check out this project to see Bugfender in action: https://github.com/bugfender/unity-demo
