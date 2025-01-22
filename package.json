@@ -1,6 +1,6 @@
 {
   "name": "com.bugfender.unity",
-  "version": "2.0.0",
+  "version": "2.0.1",
   "displayName": "Bugfender",
   "description": "Unity bindings for the native Bugfender iOS and Android SDKs",
   "unity": "2022.3",
