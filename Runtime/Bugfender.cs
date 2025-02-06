@@ -146,7 +146,6 @@ public class Bugfender : MonoBehaviour {
 
     public static void Log(LogLevel logLevel, string tag, string message)
     {
-        Debug.Log("[BF] TESTING: Sending log to Bugfender: [" + logLevel + "][" + tag + "] " + message);
 #if UNITY_ANDROID && !UNITY_EDITOR
         if (bugfender != null) {
         AndroidJavaClass levelClass = new AndroidJavaClass ("com.bugfender.sdk.LogLevel");
