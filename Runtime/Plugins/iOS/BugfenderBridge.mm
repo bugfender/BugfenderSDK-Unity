@@ -1,6 +1,14 @@
 #import <Foundation/Foundation.h>
 #import <BugfenderSDK/BugfenderSDK.h>
 
+NSString* convertCStringToNSString(const char* s)
+{
+    if(s == NULL) {
+        return nil;
+    }
+    return [NSString stringWithUTF8String:s];
+}
+
 char* convertNSStringToCString(const NSString* nsString)
 {
     if (nsString == NULL)
@@ -16,17 +24,17 @@ char* convertNSStringToCString(const NSString* nsString)
 
 extern "C" {
 void BugfenderActivateLogger(const char* key, bool printToConsole, bool hideDeviceName, const char* apiURL, const char* baseURL) {
-    NSString* apiURLString = [NSString stringWithUTF8String:apiURL];
+    NSString* apiURLString = convertCStringToNSString(apiURL);
     if(apiURLString.length > 0) {
         [Bugfender setApiURL:[NSURL URLWithString:apiURLString]];
     }
-    NSString* baseURLString = [NSString stringWithUTF8String:baseURL];
+    NSString* baseURLString = convertCStringToNSString(baseURL);
     if(baseURLString.length > 0) {
         [Bugfender setBaseURL:[NSURL URLWithString:baseURLString]];
     }
     if(hideDeviceName)
         [Bugfender overrideDeviceName:@"Unknown"];
-    [Bugfender activateLogger:[NSString stringWithUTF8String:key]];
+    [Bugfender activateLogger:convertCStringToNSString(key)];
     [Bugfender setPrintToConsole:printToConsole];
 }
 
@@ -39,29 +47,29 @@ void BugfenderEnableCrashReporting() {
 }
 
 void BugfenderSetDeviceString(const char* key, const char* value) {
-    [Bugfender setDeviceString:[NSString stringWithUTF8String:value] forKey:[NSString stringWithUTF8String:key]];
+    [Bugfender setDeviceString:convertCStringToNSString(value) forKey:convertCStringToNSString(key)];
 }
 
 void BugfenderRemoveDeviceKey(const char* key) {
-    [Bugfender removeDeviceKey:[NSString stringWithUTF8String:key]];
+    [Bugfender removeDeviceKey:convertCStringToNSString(key)];
 }
 
 void BugfenderLog(int logLevel, const char* tag, const char* message) {
-    [Bugfender logWithLineNumber:0 method:@"" file:@"" level:(BFLogLevel)logLevel tag:[NSString stringWithUTF8String:tag] message:[NSString stringWithUTF8String:message]];
+    [Bugfender logWithLineNumber:0 method:@"" file:@"" level:(BFLogLevel)logLevel tag:convertCStringToNSString(tag) message:convertCStringToNSString(message)];
 }
 
 char* BugfenderSendCrash(const char* title, const char* text) {
-    NSURL* url = [Bugfender sendCrashWithTitle:[NSString stringWithUTF8String:title] text:[NSString stringWithUTF8String:text]];
+    NSURL* url = [Bugfender sendCrashWithTitle:convertCStringToNSString(title) text:convertCStringToNSString(text)];
     return convertNSStringToCString([url absoluteString]);
 }
 
-char* BugfenderSendIssue(const char* title, const char* markdown) {
-    NSURL* url = [Bugfender sendIssueReturningUrlWithTitle:[NSString stringWithUTF8String:title] text:[NSString stringWithUTF8String:markdown]];
+char* BugfenderSendIssue(const char* title, const char* text) {
+    NSURL* url = [Bugfender sendIssueReturningUrlWithTitle:convertCStringToNSString(title) text:convertCStringToNSString(text)];
     return convertNSStringToCString([url absoluteString]);
 }
 
 char* BugfenderSendUserFeedback(const char* subject, const char* message) {
-    NSURL* url = [Bugfender sendUserFeedbackReturningUrlWithSubject:[NSString stringWithUTF8String:subject] message:[NSString stringWithUTF8String:message]];
+    NSURL* url = [Bugfender sendUserFeedbackReturningUrlWithSubject:convertCStringToNSString(subject) message:convertCStringToNSString(message)];
     return convertNSStringToCString([url absoluteString]);
 }
 
