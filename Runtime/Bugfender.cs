@@ -15,6 +15,8 @@ public class Bugfender : MonoBehaviour {
 
     public enum LogLevel { Debug, Warning, Error, Trace, Info, Fatal };
 
+    private const int SDK_VERSION = 20260119;
+
 #if UNITY_ANDROID && !UNITY_EDITOR
 	private static AndroidJavaClass bugfender;
 #elif UNITY_IOS && !UNITY_EDITOR
@@ -59,6 +61,9 @@ public class Bugfender : MonoBehaviour {
 
     [DllImport ("__Internal")]
     private static extern void BugfenderForceSendOnce();
+
+    [DllImport ("__Internal")]
+    private static extern void BugfenderSetSDKType(string sdkType, int version);
 #endif
 
     // Automatically called when scene starts
@@ -72,6 +77,8 @@ public class Bugfender : MonoBehaviour {
 
 				bugfender = new AndroidJavaClass ("com.bugfender.sdk.Bugfender");
 				if (bugfender != null) {
+                                        // Set SDK type before initialization
+                                        bugfender.CallStatic ("setSDKType", "unity", SDK_VERSION);
                                         if(HIDE_DEVICE_NAME) {
                                                 bugfender.CallStatic ("overrideDeviceName", "Unknown");
                                         }
@@ -95,6 +102,8 @@ public class Bugfender : MonoBehaviour {
 			}
 		}
 #elif UNITY_IOS && !UNITY_EDITOR
+        // Set SDK type before initialization
+        BugfenderSetSDKType("unity", SDK_VERSION);
         BugfenderActivateLogger(APP_KEY, PRINT_TO_CONSOLE, HIDE_DEVICE_NAME, API_URL, BASE_URL);
         if(ENABLE_UI_EVENT_LOGGING) {
                 BugfenderEnableUIEventLogging();
@@ -270,6 +279,19 @@ public class Bugfender : MonoBehaviour {
         BugfenderForceSendOnce();
 #else
         Debug.Log("[BF] Force send once");
+#endif
+    }
+
+    public static void SetSDKType(string sdkType, int version)
+    {
+#if UNITY_ANDROID && !UNITY_EDITOR
+        if (bugfender != null) {
+            bugfender.CallStatic ("setSDKType", sdkType, version);
+        }
+#elif UNITY_IOS && !UNITY_EDITOR
+        BugfenderSetSDKType(sdkType, version);
+#else
+        Debug.Log("[BF] Set SDK type: " + sdkType + " version: " + version);
 #endif
     }
 
