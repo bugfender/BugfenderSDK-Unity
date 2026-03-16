@@ -33,3 +33,6 @@ By default, the latest compatible versions are used. If you would like to tweak 
 
 ## Example project
 Check out this project to see Bugfender in action: https://github.com/bugfender/unity-demo
+
+## Testing
+See `TESTING.md` for a manual validation checklist for Unity import, Android builds, iOS builds, and runtime verification.

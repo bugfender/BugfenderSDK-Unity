@@ -3,6 +3,8 @@ using System.Runtime.InteropServices;
 using UnityEngine.Diagnostics;
 
 public class Bugfender : MonoBehaviour {
+    private const string SDK_TYPE = "unity";
+    private const int SDK_TYPE_VERSION = 30000;
 
     public string APP_KEY;
     public bool ENABLE_UI_EVENT_LOGGING = false;
@@ -18,6 +20,9 @@ public class Bugfender : MonoBehaviour {
 #if UNITY_ANDROID && !UNITY_EDITOR
 	private static AndroidJavaClass bugfender;
 #elif UNITY_IOS && !UNITY_EDITOR
+    [DllImport ("__Internal")]
+    private static extern void BugfenderSetSDKType(string sdkType, int version);
+
     [DllImport ("__Internal")]
     private static extern void BugfenderActivateLogger(string key, bool printToConsole, bool hideDeviceName, string apiURL, string baseURL);
       
@@ -72,6 +77,11 @@ public class Bugfender : MonoBehaviour {
 
 				bugfender = new AndroidJavaClass ("com.bugfender.sdk.Bugfender");
 				if (bugfender != null) {
+                                        try {
+                                                bugfender.CallStatic ("setSDKType", SDK_TYPE, SDK_TYPE_VERSION);
+                                        } catch (AndroidJavaException) {
+                                                Debug.LogWarning("[BF] Bugfender.setSDKType is not available in the Android SDK.");
+                                        }
                                         if(HIDE_DEVICE_NAME) {
                                                 bugfender.CallStatic ("overrideDeviceName", "Unknown");
                                         }
@@ -95,6 +105,7 @@ public class Bugfender : MonoBehaviour {
 			}
 		}
 #elif UNITY_IOS && !UNITY_EDITOR
+        BugfenderSetSDKType(SDK_TYPE, SDK_TYPE_VERSION);
         BugfenderActivateLogger(APP_KEY, PRINT_TO_CONSOLE, HIDE_DEVICE_NAME, API_URL, BASE_URL);
         if(ENABLE_UI_EVENT_LOGGING) {
                 BugfenderEnableUIEventLogging();

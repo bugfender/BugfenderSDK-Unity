@@ -23,6 +23,15 @@ char* convertNSStringToCString(const NSString* nsString)
 }
 
 extern "C" {
+void BugfenderSetSDKType(const char* sdkType, int version) {
+    SEL selector = NSSelectorFromString(@"setSDKType:version:");
+    if ([Bugfender respondsToSelector:selector]) {
+        typedef void (*SetSDKTypeMethod)(id, SEL, NSString*, int);
+        SetSDKTypeMethod method = (SetSDKTypeMethod)[Bugfender methodForSelector:selector];
+        method(Bugfender, selector, convertCStringToNSString(sdkType), version);
+    }
+}
+
 void BugfenderActivateLogger(const char* key, bool printToConsole, bool hideDeviceName, const char* apiURL, const char* baseURL) {
     NSString* apiURLString = convertCStringToNSString(apiURL);
     if(apiURLString.length > 0) {
