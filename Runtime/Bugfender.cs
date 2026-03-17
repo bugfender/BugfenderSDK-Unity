@@ -1,8 +1,10 @@
-﻿using UnityEngine;
+using UnityEngine;
 using System.Runtime.InteropServices;
 using UnityEngine.Diagnostics;
 
 public class Bugfender : MonoBehaviour {
+    private const string SDK_TYPE = "unity";
+    private const int SDK_TYPE_VERSION = 30000;
 
     public string APP_KEY;
     public bool ENABLE_UI_EVENT_LOGGING = false;
@@ -20,6 +22,9 @@ public class Bugfender : MonoBehaviour {
 #if UNITY_ANDROID && !UNITY_EDITOR
 	private static AndroidJavaClass bugfender;
 #elif UNITY_IOS && !UNITY_EDITOR
+    [DllImport ("__Internal")]
+    private static extern void BugfenderSetSDKType(string sdkType, int version);
+
     [DllImport ("__Internal")]
     private static extern void BugfenderActivateLogger(string key, bool printToConsole, bool hideDeviceName, string apiURL, string baseURL);
       
@@ -69,6 +74,18 @@ public class Bugfender : MonoBehaviour {
     // Automatically called when scene starts
     void Start()
     {
+        // Optional override from Resources/bugfender_app_key.txt (e.g. for CI or per-build config)
+        var keyAsset = Resources.Load<TextAsset>("bugfender_app_key");
+        if (keyAsset != null && !string.IsNullOrWhiteSpace(keyAsset.text))
+        {
+            APP_KEY = keyAsset.text.Trim();
+        }
+        // Optional: set Resources/bugfender_print_to_console.txt to "true" to mirror logs to logcat (Android) / Xcode console (iOS)
+        var printAsset = Resources.Load<TextAsset>("bugfender_print_to_console");
+        if (printAsset != null && string.Equals(printAsset.text.Trim(), "true", System.StringComparison.OrdinalIgnoreCase))
+        {
+            PRINT_TO_CONSOLE = true;
+        }
         Debug.Log("[BF] *** INITIALIZING BUGFENDER ***");
 #if UNITY_ANDROID && !UNITY_EDITOR
 		if (bugfender == null) {
@@ -77,8 +94,11 @@ public class Bugfender : MonoBehaviour {
 
 				bugfender = new AndroidJavaClass ("com.bugfender.sdk.Bugfender");
 				if (bugfender != null) {
-                                        // Set SDK type before initialization
-                                        bugfender.CallStatic ("setSDKType", "unity", SDK_VERSION);
+                                        try {
+                                                bugfender.CallStatic ("setSDKType", SDK_TYPE, SDK_TYPE_VERSION);
+                                        } catch (AndroidJavaException) {
+                                                Debug.LogWarning("[BF] Bugfender.setSDKType is not available in the Android SDK.");
+                                        }
                                         if(HIDE_DEVICE_NAME) {
                                                 bugfender.CallStatic ("overrideDeviceName", "Unknown");
                                         }
@@ -96,14 +116,18 @@ public class Bugfender : MonoBehaviour {
                                         if (ENABLE_CRASH_REPORTING) {
                                                 bugfender.CallStatic ("enableCrashReporting");
                                         }
+                                        // Optional: set Resources/bugfender_debug.txt to "true" to enable native SDK debug logs (tag BF/DEBUG in logcat)
+                                        var debugAsset = Resources.Load<TextAsset>("bugfender_debug");
+                                        if (debugAsset != null && string.Equals(debugAsset.text.Trim(), "true", System.StringComparison.OrdinalIgnoreCase)) {
+                                                try { bugfender.CallStatic("setDebugMode", true); } catch (AndroidJavaException) { /* ignore if not available */ }
+                                        }
                                         //bugfender.CallStatic ("enableLogcatLogging"); // optional, uncomment if you want it (Android only)
 				}
                                         
 			}
 		}
 #elif UNITY_IOS && !UNITY_EDITOR
-        // Set SDK type before initialization
-        BugfenderSetSDKType("unity", SDK_VERSION);
+        BugfenderSetSDKType(SDK_TYPE, SDK_TYPE_VERSION);
         BugfenderActivateLogger(APP_KEY, PRINT_TO_CONSOLE, HIDE_DEVICE_NAME, API_URL, BASE_URL);
         if(ENABLE_UI_EVENT_LOGGING) {
                 BugfenderEnableUIEventLogging();
