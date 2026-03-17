@@ -104,4 +104,8 @@ void BugfenderForceSendOnce() {
     [Bugfender forceSendOnce];
 }
 
+void BugfenderSetSDKType(const char* sdkType, int version) {
+    [Bugfender setSDKType:convertCStringToNSString(sdkType) version:version];
+}
+
 }

@@ -17,6 +17,8 @@ public class Bugfender : MonoBehaviour {
 
     public enum LogLevel { Debug, Warning, Error, Trace, Info, Fatal };
 
+    private const int SDK_VERSION = 20260119;
+
 #if UNITY_ANDROID && !UNITY_EDITOR
 	private static AndroidJavaClass bugfender;
 #elif UNITY_IOS && !UNITY_EDITOR
@@ -64,6 +66,9 @@ public class Bugfender : MonoBehaviour {
 
     [DllImport ("__Internal")]
     private static extern void BugfenderForceSendOnce();
+
+    [DllImport ("__Internal")]
+    private static extern void BugfenderSetSDKType(string sdkType, int version);
 #endif
 
     // Automatically called when scene starts
@@ -298,6 +303,19 @@ public class Bugfender : MonoBehaviour {
         BugfenderForceSendOnce();
 #else
         Debug.Log("[BF] Force send once");
+#endif
+    }
+
+    public static void SetSDKType(string sdkType, int version)
+    {
+#if UNITY_ANDROID && !UNITY_EDITOR
+        if (bugfender != null) {
+            bugfender.CallStatic ("setSDKType", sdkType, version);
+        }
+#elif UNITY_IOS && !UNITY_EDITOR
+        BugfenderSetSDKType(sdkType, version);
+#else
+        Debug.Log("[BF] Set SDK type: " + sdkType + " version: " + version);
 #endif
     }
 
