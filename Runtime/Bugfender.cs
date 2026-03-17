@@ -1,4 +1,4 @@
-﻿using UnityEngine;
+using UnityEngine;
 using System.Runtime.InteropServices;
 using UnityEngine.Diagnostics;
 
@@ -69,6 +69,18 @@ public class Bugfender : MonoBehaviour {
     // Automatically called when scene starts
     void Start()
     {
+        // Optional override from Resources/bugfender_app_key.txt (e.g. for CI or per-build config)
+        var keyAsset = Resources.Load<TextAsset>("bugfender_app_key");
+        if (keyAsset != null && !string.IsNullOrWhiteSpace(keyAsset.text))
+        {
+            APP_KEY = keyAsset.text.Trim();
+        }
+        // Optional: set Resources/bugfender_print_to_console.txt to "true" to mirror logs to logcat (Android) / Xcode console (iOS)
+        var printAsset = Resources.Load<TextAsset>("bugfender_print_to_console");
+        if (printAsset != null && string.Equals(printAsset.text.Trim(), "true", System.StringComparison.OrdinalIgnoreCase))
+        {
+            PRINT_TO_CONSOLE = true;
+        }
         Debug.Log("[BF] *** INITIALIZING BUGFENDER ***");
 #if UNITY_ANDROID && !UNITY_EDITOR
 		if (bugfender == null) {
@@ -98,6 +110,11 @@ public class Bugfender : MonoBehaviour {
                                         }
                                         if (ENABLE_CRASH_REPORTING) {
                                                 bugfender.CallStatic ("enableCrashReporting");
+                                        }
+                                        // Optional: set Resources/bugfender_debug.txt to "true" to enable native SDK debug logs (tag BF/DEBUG in logcat)
+                                        var debugAsset = Resources.Load<TextAsset>("bugfender_debug");
+                                        if (debugAsset != null && string.Equals(debugAsset.text.Trim(), "true", System.StringComparison.OrdinalIgnoreCase)) {
+                                                try { bugfender.CallStatic("setDebugMode", true); } catch (AndroidJavaException) { /* ignore if not available */ }
                                         }
                                         //bugfender.CallStatic ("enableLogcatLogging"); // optional, uncomment if you want it (Android only)
 				}

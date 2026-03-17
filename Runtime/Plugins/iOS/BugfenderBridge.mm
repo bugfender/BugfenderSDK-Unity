@@ -26,9 +26,9 @@ extern "C" {
 void BugfenderSetSDKType(const char* sdkType, int version) {
     SEL selector = NSSelectorFromString(@"setSDKType:version:");
     if ([Bugfender respondsToSelector:selector]) {
-        typedef void (*SetSDKTypeMethod)(id, SEL, NSString*, int);
-        SetSDKTypeMethod method = (SetSDKTypeMethod)[Bugfender methodForSelector:selector];
-        method(Bugfender, selector, convertCStringToNSString(sdkType), version);
+        typedef void (*SetSDKTypeFunc)(id, SEL, NSString*, int);
+        SetSDKTypeFunc invoke = (SetSDKTypeFunc)[Bugfender methodForSelector:selector];
+        invoke((id)[Bugfender class], selector, convertCStringToNSString(sdkType), version);
     }
 }
 
