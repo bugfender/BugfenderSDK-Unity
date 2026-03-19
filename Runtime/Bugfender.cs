@@ -1,10 +1,9 @@
 using UnityEngine;
-using System.Runtime.InteropServices;
 using UnityEngine.Diagnostics;
 
 public class Bugfender : MonoBehaviour {
     private const string SDK_TYPE = "unity";
-    private const int SDK_TYPE_VERSION = 30000;
+    private const int SDK_TYPE_VERSION = 30001;
 
     public string APP_KEY;
     public bool ENABLE_UI_EVENT_LOGGING = false;
@@ -17,58 +16,19 @@ public class Bugfender : MonoBehaviour {
 
     public enum LogLevel { Debug, Warning, Error, Trace, Info, Fatal };
 
-    private const int SDK_VERSION = 20260119;
+    private static bool BugfenderResourceFlagTrue(string resourceName)
+    {
+        var asset = Resources.Load<TextAsset>(resourceName);
+        return asset != null && string.Equals(asset.text.Trim(), "true", System.StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static bool ResourcesWantNativeLogCapture()
+    {
+        return BugfenderResourceFlagTrue("bugfender_native_log_capture");
+    }
 
 #if UNITY_ANDROID && !UNITY_EDITOR
 	private static AndroidJavaClass bugfender;
-#elif UNITY_IOS && !UNITY_EDITOR
-    [DllImport ("__Internal")]
-    private static extern void BugfenderSetSDKType(string sdkType, int version);
-
-    [DllImport ("__Internal")]
-    private static extern void BugfenderActivateLogger(string key, bool printToConsole, bool hideDeviceName, string apiURL, string baseURL);
-      
-    [DllImport ("__Internal")]
-    private static extern void BugfenderEnableUIEventLogging();
-
-    [DllImport ("__Internal")]
-    private static extern void BugfenderEnableCrashReporting();
-  
-    [DllImport ("__Internal")]
-    private static extern void BugfenderSetDeviceString(string key, string value);
-  
-    [DllImport ("__Internal")]
-    private static extern void BugfenderRemoveDeviceKey(string key);
-  
-    [DllImport ("__Internal")]
-    private static extern void BugfenderLog(int logLevel, string tag, string message);
-  
-    [DllImport ("__Internal")]
-    private static extern string BugfenderSendCrash(string title, string text);
-
-    [DllImport ("__Internal")]
-    private static extern string BugfenderSendIssue(string title, string markdown);
-
-    [DllImport ("__Internal")]
-    private static extern string BugfenderSendUserFeedback(string subject, string message);
-
-    [DllImport ("__Internal")]
-    private static extern void BugfenderSetMaximumLocalStorageSize(ulong maximumLocalStorageSizeBytes);
-
-    [DllImport ("__Internal")]
-    private static extern string BugfenderGetDeviceIdentifierUrl();
-
-    [DllImport ("__Internal")]
-    private static extern string BugfenderGetSessionIdentifierUrl();
-
-    [DllImport ("__Internal")]
-    private static extern void BugfenderSetForceEnabled(bool enabled);
-
-    [DllImport ("__Internal")]
-    private static extern void BugfenderForceSendOnce();
-
-    [DllImport ("__Internal")]
-    private static extern void BugfenderSetSDKType(string sdkType, int version);
 #endif
 
     // Automatically called when scene starts
@@ -121,19 +81,24 @@ public class Bugfender : MonoBehaviour {
                                         if (debugAsset != null && string.Equals(debugAsset.text.Trim(), "true", System.StringComparison.OrdinalIgnoreCase)) {
                                                 try { bugfender.CallStatic("setDebugMode", true); } catch (AndroidJavaException) { /* ignore if not available */ }
                                         }
-                                        //bugfender.CallStatic ("enableLogcatLogging"); // optional, uncomment if you want it (Android only)
+                                        if (ResourcesWantNativeLogCapture()) {
+                                                try { bugfender.CallStatic("enableLogcatLogging"); } catch (AndroidJavaException) { }
+                                        }
 				}
                                         
 			}
 		}
 #elif UNITY_IOS && !UNITY_EDITOR
-        BugfenderSetSDKType(SDK_TYPE, SDK_TYPE_VERSION);
-        BugfenderActivateLogger(APP_KEY, PRINT_TO_CONSOLE, HIDE_DEVICE_NAME, API_URL, BASE_URL);
+        BugfenderNativeIos.SetSDKType(SDK_TYPE, SDK_TYPE_VERSION);
+        BugfenderNativeIos.ActivateLogger(APP_KEY, PRINT_TO_CONSOLE, HIDE_DEVICE_NAME, API_URL, BASE_URL);
         if(ENABLE_UI_EVENT_LOGGING) {
-                BugfenderEnableUIEventLogging();
+                BugfenderNativeIos.EnableUIEventLogging();
         }
         if (ENABLE_CRASH_REPORTING) {
-                BugfenderEnableCrashReporting();
+                BugfenderNativeIos.EnableCrashReporting();
+        }
+        if (ResourcesWantNativeLogCapture()) {
+                BugfenderNativeIos.EnableNSLogLogging();
         }
 #endif
         /* Some examples on how to use Bugfender:
@@ -153,7 +118,7 @@ public class Bugfender : MonoBehaviour {
             bugfender.CallStatic ("setDeviceString", key, value);
         }
 #elif UNITY_IOS && !UNITY_EDITOR
-        BugfenderSetDeviceString(key, value);
+        BugfenderNativeIos.SetDeviceString(key, value);
 #else
         Debug.Log("[BF] Set device key:" + key + " value:" + value);
 #endif
@@ -166,9 +131,26 @@ public class Bugfender : MonoBehaviour {
             bugfender.CallStatic ("removeDeviceKey", key);
         }
 #elif UNITY_IOS && !UNITY_EDITOR
-        BugfenderRemoveDeviceKey(key);
+        BugfenderNativeIos.RemoveDeviceKey(key);
 #else
         Debug.Log("[BF] Remove device key: " + key);
+#endif
+    }
+
+    /// <summary>
+    /// Enables native system log capture for the current platform (Android logcat; iOS 15+ NSLog/OSLog).
+    /// Call after the Bugfender component has initialized, or add <c>Assets/Resources/bugfender_native_log_capture.txt</c> with <c>true</c>.
+    /// </summary>
+    public static void EnableNativeLogCapture()
+    {
+#if UNITY_ANDROID && !UNITY_EDITOR
+        if (bugfender != null) {
+            try { bugfender.CallStatic("enableLogcatLogging"); } catch (AndroidJavaException) { }
+        }
+#elif UNITY_IOS && !UNITY_EDITOR
+        BugfenderNativeIos.EnableNSLogLogging();
+#else
+        Debug.Log("[BF] EnableNativeLogCapture is for Android or iOS device builds only.");
 #endif
     }
 
@@ -187,7 +169,7 @@ public class Bugfender : MonoBehaviour {
         }
 #elif UNITY_IOS && !UNITY_EDITOR
         int intLevel = (int)logLevel;
-        BugfenderLog(intLevel, tag, message);
+        BugfenderNativeIos.Log(intLevel, tag, message);
 #else
         Debug.Log("[BF] Sending log to Bugfender: [" + logLevel + "][" + tag + "] " + message);
 #endif
@@ -201,7 +183,7 @@ public class Bugfender : MonoBehaviour {
         }
         return null;
 #elif UNITY_IOS && !UNITY_EDITOR
-        return BugfenderSendCrash(title, text);
+        return BugfenderNativeIos.SendCrash(title, text);
 #else
         Debug.Log("[BF] Send crash: " + title + " : " + text);
         return null;
@@ -216,7 +198,7 @@ public class Bugfender : MonoBehaviour {
         }
         return null;
 #elif UNITY_IOS && !UNITY_EDITOR
-        return BugfenderSendIssue(title, text);
+        return BugfenderNativeIos.SendIssue(title, text);
 #else
         Debug.Log("[BF] Send issue: " + title + " : " + text);
         return null;
@@ -231,7 +213,7 @@ public class Bugfender : MonoBehaviour {
         }
         return null;
 #elif UNITY_IOS && !UNITY_EDITOR
-        return BugfenderSendUserFeedback(subject, message);
+        return BugfenderNativeIos.SendUserFeedback(subject, message);
 #else
         Debug.Log("[BF] Send user feedback: " + subject + " : " + message);
         return null;
@@ -246,7 +228,7 @@ public class Bugfender : MonoBehaviour {
             bugfender.CallStatic ("setMaximumLocalStorageSize", b);
         }
 #elif UNITY_IOS && !UNITY_EDITOR
-        BugfenderSetMaximumLocalStorageSize(bytes);
+        BugfenderNativeIos.SetMaximumLocalStorageSize(bytes);
 #else
         Debug.Log("[BF] Set max storage size:" + bytes);
 #endif
@@ -260,7 +242,7 @@ public class Bugfender : MonoBehaviour {
         }
         return null;
 #elif UNITY_IOS && !UNITY_EDITOR
-        return BugfenderGetDeviceIdentifierUrl();
+        return BugfenderNativeIos.GetDeviceIdentifierUrl();
 #else
         return null;
 #endif
@@ -274,7 +256,7 @@ public class Bugfender : MonoBehaviour {
         }
         return null;
 #elif UNITY_IOS && !UNITY_EDITOR
-        return BugfenderGetSessionIdentifierUrl();
+        return BugfenderNativeIos.GetSessionIdentifierUrl();
 #else
         return null;
 #endif
@@ -287,7 +269,7 @@ public class Bugfender : MonoBehaviour {
             bugfender.CallStatic ("setForceEnabled", enabled);
         }
 #elif UNITY_IOS && !UNITY_EDITOR
-        BugfenderSetForceEnabled(enabled);
+        BugfenderNativeIos.SetForceEnabled(enabled);
 #else
         Debug.Log("[BF] Set force enabled:" + enabled);
 #endif
@@ -300,7 +282,7 @@ public class Bugfender : MonoBehaviour {
             bugfender.CallStatic ("forceSendOnce");
         }
 #elif UNITY_IOS && !UNITY_EDITOR
-        BugfenderForceSendOnce();
+        BugfenderNativeIos.ForceSendOnce();
 #else
         Debug.Log("[BF] Force send once");
 #endif
@@ -313,7 +295,7 @@ public class Bugfender : MonoBehaviour {
             bugfender.CallStatic ("setSDKType", sdkType, version);
         }
 #elif UNITY_IOS && !UNITY_EDITOR
-        BugfenderSetSDKType(sdkType, version);
+        BugfenderNativeIos.SetSDKType(sdkType, version);
 #else
         Debug.Log("[BF] Set SDK type: " + sdkType + " version: " + version);
 #endif
