@@ -55,6 +55,12 @@ void BugfenderEnableCrashReporting() {
     [Bugfender enableCrashReporting];
 }
 
+void BugfenderEnableNSLogLogging(void) {
+    if (@available(iOS 15.0, *)) {
+        [Bugfender enableNSLogLogging];
+    }
+}
+
 void BugfenderSetDeviceString(const char* key, const char* value) {
     [Bugfender setDeviceString:convertCStringToNSString(value) forKey:convertCStringToNSString(key)];
 }
