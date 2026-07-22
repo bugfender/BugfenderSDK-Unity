@@ -23,6 +23,46 @@ You want the Bugfender SDK to initialize early to capture as many logs and error
 
 You can change the priority in the **Project Settings** > **Script Execution Order**.
 
+### Network logging
+
+Network logging is **opt-in** and disabled by default. When enabled, HTTP requests can appear in the Bugfender dashboard as `bf_network` logs.
+
+```csharp
+Bugfender.SetNetworkLoggingEnabled(true);
+// Optional:
+Bugfender.SetNetworkLoggingCaptureBodies(false);
+Bugfender.SetNetworkLoggingCaptureErrorResponseBodies(true);
+Bugfender.SetNetworkLoggingURLFilter(
+    allowlist: new[] { "https://api.example.com/*" },
+    denylist: new[] { "*/secrets/*" });
+Bugfender.SetNetworkLoggingMaxRequestsPerMinute(60);
+```
+
+Unity does not have a single global HTTP stack. Instrument traffic with one of:
+
+**`HttpClient`** — wrap with `BugfenderHttpMessageHandler`:
+
+```csharp
+var client = new HttpClient(new BugfenderHttpMessageHandler());
+var response = await client.GetAsync("https://api.example.com/users");
+```
+
+**`UnityWebRequest`** — use the helpers:
+
+```csharp
+var request = UnityWebRequest.Get("https://api.example.com/users");
+yield return BugfenderUnityWebRequest.Send(request);
+```
+
+Or manually: `BugfenderUnityWebRequest.Prepare(request)` before send, then `Complete(...)` after.
+
+**Other HTTP libraries** — build a `NetworkLogEntry` and call `Bugfender.LogNetwork(entry)`.
+
+When network logging is enabled, instrumented requests also receive correlation headers:
+`X-Bugfender-Session-ID` and `X-Bugfender-Request-ID`.
+
+On Android/iOS the same config APIs are forwarded to the native SDKs (OkHttp / URLSession). Typical Unity game traffic still needs the C# helpers above.
+
 ### Adjust the native Bugfender SDK versions
 This package imports the native Bugfender SDKs for iOS and Android using Swift Package Manager and Gradle.
 

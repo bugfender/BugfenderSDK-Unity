@@ -110,4 +110,63 @@ void BugfenderForceSendOnce() {
     [Bugfender forceSendOnce];
 }
 
+char* BugfenderGetSessionIdentifier() {
+    // sessionIdentifier is deprecated but still the reliable UUID source for correlation headers.
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wdeprecated-declarations"
+    NSString* sessionId = [Bugfender sessionIdentifier];
+#pragma clang diagnostic pop
+    return convertNSStringToCString(sessionId);
+}
+
+void BugfenderSetNetworkLoggingEnabled(bool enabled) {
+    if ([Bugfender respondsToSelector:@selector(setNetworkLoggingEnabled:)]) {
+        [Bugfender setNetworkLoggingEnabled:enabled];
+    }
+}
+
+void BugfenderSetNetworkLoggingCaptureBodies(bool capture) {
+    if ([Bugfender respondsToSelector:@selector(setNetworkLoggingCaptureBodies:)]) {
+        [Bugfender setNetworkLoggingCaptureBodies:capture];
+    }
+}
+
+void BugfenderSetNetworkLoggingCaptureErrorResponseBodies(bool capture) {
+    if ([Bugfender respondsToSelector:@selector(setNetworkLoggingCaptureErrorResponseBodies:)]) {
+        [Bugfender setNetworkLoggingCaptureErrorResponseBodies:capture];
+    }
+}
+
+NSArray<NSString *>* patternsFromJoinedString(const char* joined) {
+    NSString* text = convertCStringToNSString(joined);
+    if (text.length == 0) {
+        return nil;
+    }
+    NSArray<NSString *>* parts = [text componentsSeparatedByString:@"\n"];
+    NSMutableArray<NSString *>* patterns = [NSMutableArray array];
+    for (NSString* part in parts) {
+        NSString* trimmed = [part stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceAndNewlineCharacterSet]];
+        if (trimmed.length > 0) {
+            [patterns addObject:trimmed];
+        }
+    }
+    return patterns.count > 0 ? patterns : nil;
+}
+
+void BugfenderSetNetworkLoggingURLFilter(const char* allowlistJoined, const char* denylistJoined) {
+    if (![Bugfender respondsToSelector:@selector(setNetworkLoggingURLFilterWithAllowlist:denylist:)]) {
+        return;
+    }
+    [Bugfender setNetworkLoggingURLFilterWithAllowlist:patternsFromJoinedString(allowlistJoined)
+                                              denylist:patternsFromJoinedString(denylistJoined)];
+}
+
+void BugfenderSetNetworkLoggingMaxRequestsPerMinute(int countOrNegative) {
+    if (![Bugfender respondsToSelector:@selector(setNetworkLoggingMaxRequestsPerMinute:)]) {
+        return;
+    }
+    NSNumber* value = countOrNegative < 0 ? nil : @(countOrNegative);
+    [Bugfender setNetworkLoggingMaxRequestsPerMinute:value];
+}
+
 }
