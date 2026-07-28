@@ -275,7 +275,14 @@ internal static class NetworkLoggingManager
             Timing = entry.Timing,
         });
 
-        Bugfender.Log(Bugfender.LogLevel.Info, NetworkLoggingPayload.NetworkLogTag, text);
+        try
+        {
+            Bugfender.Log(Bugfender.LogLevel.Info, NetworkLoggingPayload.NetworkLogTag, text);
+        }
+        catch
+        {
+            // Logging must never throw into HTTP pipelines.
+        }
     }
 
     private static NetworkRequestData ApplyRequestObfuscation(

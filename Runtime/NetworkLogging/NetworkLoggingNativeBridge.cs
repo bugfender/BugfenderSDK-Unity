@@ -161,8 +161,9 @@ internal static class NetworkLoggingNativeBridge
 
     private static AndroidJavaObject ToJavaResult(string url, IDictionary<string, string> headers, string body)
     {
-        using (var javaHeaders = new AndroidJavaObject("java.util.HashMap"))
+        using (var resultClass = new AndroidJavaClass("com.bugfender.unity.androidlib.NetworkObfuscationResult"))
         {
+            var javaHeaders = resultClass.CallStatic<AndroidJavaObject>("newHeaderMap");
             if (headers != null)
             {
                 foreach (var pair in headers)
@@ -172,15 +173,11 @@ internal static class NetworkLoggingNativeBridge
                         continue;
                     }
 
-                    javaHeaders.Call<AndroidJavaObject>("put", pair.Key, pair.Value ?? string.Empty);
+                    resultClass.CallStatic("putHeader", javaHeaders, pair.Key, pair.Value ?? string.Empty);
                 }
             }
 
-            return new AndroidJavaObject(
-                "com.bugfender.unity.androidlib.NetworkObfuscationResult",
-                url,
-                javaHeaders,
-                body);
+            return resultClass.CallStatic<AndroidJavaObject>("create", url, javaHeaders, body);
         }
     }
 #endif

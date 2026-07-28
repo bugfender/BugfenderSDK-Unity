@@ -114,23 +114,30 @@ public sealed class BugfenderHttpMessageHandler : DelegatingHandler
                     }
                 }
 
-                NetworkLoggingManager.Emit(new NetworkLogEntry
+                try
                 {
-                    Url = url,
-                    Method = method,
-                    RequestId = requestId ?? NetworkLoggingManager.CreateRequestId(),
-                    StartTimeMs = startTimeMs,
-                    DurationMs = stopwatch.ElapsedMilliseconds,
-                    StatusCode = statusCode,
-                    RequestSize = requestSize,
-                    ResponseSize = responseSize,
-                    RequestHeaders = requestHeaders,
-                    ResponseHeaders = responseHeaders,
-                    RequestBody = requestBody,
-                    ResponseBody = responseBody,
-                    IncludeRequestBody = includeRequestBody,
-                    IncludeResponseBody = includeResponseBody,
-                });
+                    NetworkLoggingManager.Emit(new NetworkLogEntry
+                    {
+                        Url = url,
+                        Method = method,
+                        RequestId = requestId ?? NetworkLoggingManager.CreateRequestId(),
+                        StartTimeMs = startTimeMs,
+                        DurationMs = stopwatch.ElapsedMilliseconds,
+                        StatusCode = statusCode,
+                        RequestSize = requestSize,
+                        ResponseSize = responseSize,
+                        RequestHeaders = requestHeaders,
+                        ResponseHeaders = responseHeaders,
+                        RequestBody = requestBody,
+                        ResponseBody = responseBody,
+                        IncludeRequestBody = includeRequestBody,
+                        IncludeResponseBody = includeResponseBody,
+                    });
+                }
+                catch
+                {
+                    // Never let capture/logging break the HTTP call.
+                }
             }
 
             return response;
@@ -140,21 +147,28 @@ public sealed class BugfenderHttpMessageHandler : DelegatingHandler
             stopwatch.Stop();
             if (shouldCapture)
             {
-                NetworkLoggingManager.Emit(new NetworkLogEntry
+                try
                 {
-                    Url = url,
-                    Method = method,
-                    RequestId = requestId ?? NetworkLoggingManager.CreateRequestId(),
-                    StartTimeMs = startTimeMs,
-                    DurationMs = stopwatch.ElapsedMilliseconds,
-                    RequestSize = requestSize,
-                    RequestHeaders = requestHeaders ?? new Dictionary<string, string>(),
-                    ResponseHeaders = new Dictionary<string, string>(),
-                    RequestBody = requestBody,
-                    IncludeRequestBody = includeRequestBody,
-                    IncludeResponseBody = false,
-                    Error = ex.Message,
-                });
+                    NetworkLoggingManager.Emit(new NetworkLogEntry
+                    {
+                        Url = url,
+                        Method = method,
+                        RequestId = requestId ?? NetworkLoggingManager.CreateRequestId(),
+                        StartTimeMs = startTimeMs,
+                        DurationMs = stopwatch.ElapsedMilliseconds,
+                        RequestSize = requestSize,
+                        RequestHeaders = requestHeaders ?? new Dictionary<string, string>(),
+                        ResponseHeaders = new Dictionary<string, string>(),
+                        RequestBody = requestBody,
+                        IncludeRequestBody = includeRequestBody,
+                        IncludeResponseBody = false,
+                        Error = ex.Message,
+                    });
+                }
+                catch
+                {
+                    // Never let capture/logging break the HTTP call.
+                }
             }
 
             throw;

@@ -1,5 +1,7 @@
 using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
+using System.Threading;
 using UnityEngine;
 using UnityEngine.Diagnostics;
 
@@ -18,6 +20,11 @@ public class Bugfender : MonoBehaviour {
 
     public enum LogLevel { Debug, Warning, Error, Trace, Info, Fatal };
 
+    private static int _mainThreadId;
+    private static SynchronizationContext _unitySynchronizationContext;
+    private static readonly ConcurrentQueue<Action> _mainThreadActions = new ConcurrentQueue<Action>();
+    private static Bugfender _instance;
+
     private static bool BugfenderResourceFlagTrue(string resourceName)
     {
         var asset = Resources.Load<TextAsset>(resourceName);
@@ -27,6 +34,85 @@ public class Bugfender : MonoBehaviour {
     private static bool ResourcesWantNativeLogCapture()
     {
         return BugfenderResourceFlagTrue("bugfender_native_log_capture");
+    }
+
+    /// <summary>
+    /// AndroidJava / JNI must run on the Unity main thread.
+    /// HttpClient continuations (and OkHttp callbacks) often run elsewhere.
+    private static void RunOnMainThread(Action action)
+    {
+        if (action == null)
+        {
+            return;
+        }
+
+        if (_mainThreadId == 0 || Thread.CurrentThread.ManagedThreadId == _mainThreadId)
+        {
+            action();
+            return;
+        }
+
+        // Prefer UnitySynchronizationContext — survives scene unloads (unlike Update on a scene object).
+        var context = _unitySynchronizationContext;
+        if (context != null)
+        {
+            context.Post(_ =>
+            {
+                try
+                {
+                    action();
+                }
+                catch (Exception ex)
+                {
+                    Debug.LogWarning("[BF] Main-thread action failed: " + ex.Message);
+                }
+            }, null);
+            return;
+        }
+
+        _mainThreadActions.Enqueue(action);
+    }
+
+    void Awake()
+    {
+        if (_instance != null && _instance != this)
+        {
+            Destroy(gameObject);
+            return;
+        }
+
+        _instance = this;
+        _mainThreadId = Thread.CurrentThread.ManagedThreadId;
+        if (SynchronizationContext.Current != null)
+        {
+            _unitySynchronizationContext = SynchronizationContext.Current;
+        }
+
+        // Keep the dispatcher (and native AndroidJavaClass holder) across scene loads.
+        DontDestroyOnLoad(gameObject);
+    }
+
+    void OnDestroy()
+    {
+        if (_instance == this)
+        {
+            _instance = null;
+        }
+    }
+
+    void Update()
+    {
+        while (_mainThreadActions.TryDequeue(out var action))
+        {
+            try
+            {
+                action();
+            }
+            catch (Exception ex)
+            {
+                Debug.LogWarning("[BF] Main-thread action failed: " + ex.Message);
+            }
+        }
     }
 
 #if UNITY_ANDROID && !UNITY_EDITOR
@@ -214,11 +300,30 @@ public class Bugfender : MonoBehaviour {
     public static void Log(LogLevel logLevel, string tag, string message)
     {
 #if UNITY_ANDROID && !UNITY_EDITOR
-        if (bugfender != null) {
-        AndroidJavaClass levelClass = new AndroidJavaClass ("com.bugfender.sdk.LogLevel");
-            AndroidJavaObject level = levelClass.GetStatic<AndroidJavaObject>(logLevel.ToString());
-            bugfender.CallStatic ("log", 0, "", "", level, tag, message);
-        }
+        // Capture args; network Emit often calls this from a thread-pool continuation.
+        var levelName = logLevel.ToString();
+        var logTag = tag ?? string.Empty;
+        var logMessage = message ?? string.Empty;
+        RunOnMainThread(() =>
+        {
+            if (bugfender == null)
+            {
+                return;
+            }
+
+            try
+            {
+                using (var levelClass = new AndroidJavaClass("com.bugfender.sdk.LogLevel"))
+                {
+                    var level = levelClass.GetStatic<AndroidJavaObject>(levelName);
+                    bugfender.CallStatic("log", 0, "", "", level, logTag, logMessage);
+                }
+            }
+            catch (Exception ex)
+            {
+                Debug.LogWarning("[BF] Log failed: " + ex.Message);
+            }
+        });
 #elif UNITY_IOS && !UNITY_EDITOR
         int intLevel = (int)logLevel;
         BugfenderNativeIos.Log(intLevel, tag, message);
@@ -330,9 +435,12 @@ public class Bugfender : MonoBehaviour {
     public static void ForceSendOnce()
     {
 #if UNITY_ANDROID && !UNITY_EDITOR
-        if (bugfender != null) {
-            bugfender.CallStatic ("forceSendOnce");
-        }
+        RunOnMainThread(() =>
+        {
+            if (bugfender != null) {
+                try { bugfender.CallStatic ("forceSendOnce"); } catch (Exception) { }
+            }
+        });
 #elif UNITY_IOS && !UNITY_EDITOR
         BugfenderNativeIos.ForceSendOnce();
 #else
@@ -526,11 +634,14 @@ public class Bugfender : MonoBehaviour {
         }
 
         var list = new AndroidJavaObject("java.util.ArrayList");
-        foreach (var item in items)
+        using (var bridge = new AndroidJavaClass("com.bugfender.unity.androidlib.UnityNetworkObfuscationBridge"))
         {
-            if (item != null)
+            foreach (var item in items)
             {
-                list.Call<bool>("add", item);
+                if (item != null)
+                {
+                    bridge.CallStatic("listAddString", list, item);
+                }
             }
         }
 

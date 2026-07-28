@@ -19,6 +19,12 @@ public final class UnityNetworkObfuscationBridge {
     private UnityNetworkObfuscationBridge() {
     }
 
+    public static void listAddString(java.util.ArrayList<String> list, String item) {
+        if (list != null && item != null) {
+            list.add(item);
+        }
+    }
+
     public static void setRequestObfuscationHandler(UnityNetworkRequestObfuscator handler) {
         setObfuscationHandler(
                 "setNetworkLoggingRequestObfuscationHandler",
