@@ -86,6 +86,8 @@ internal static class NetworkLoggingManager
         {
             _requestObfuscationHandler = handler;
         }
+
+        SyncNativeObfuscationHandlers();
     }
 
     public static void SetResponseObfuscationHandler(NetworkLoggingResponseObfuscationHandler handler)
@@ -94,6 +96,31 @@ internal static class NetworkLoggingManager
         {
             _responseObfuscationHandler = handler;
         }
+
+        SyncNativeObfuscationHandlers();
+    }
+
+    public static NetworkLoggingRequestObfuscationHandler RequestObfuscationHandler
+    {
+        get { lock (Sync) { return _requestObfuscationHandler; } }
+    }
+
+    public static NetworkLoggingResponseObfuscationHandler ResponseObfuscationHandler
+    {
+        get { lock (Sync) { return _responseObfuscationHandler; } }
+    }
+
+    private static void SyncNativeObfuscationHandlers()
+    {
+        NetworkLoggingRequestObfuscationHandler requestHandler;
+        NetworkLoggingResponseObfuscationHandler responseHandler;
+        lock (Sync)
+        {
+            requestHandler = _requestObfuscationHandler;
+            responseHandler = _responseObfuscationHandler;
+        }
+
+        NetworkLoggingNativeBridge.SyncObfuscationHandlers(requestHandler, responseHandler);
     }
 
     public static void SetURLFilter(IEnumerable<string> allowlist, IEnumerable<string> denylist)

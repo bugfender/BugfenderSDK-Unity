@@ -1,4 +1,5 @@
 #if UNITY_IOS && !UNITY_EDITOR
+using System;
 using System.Runtime.InteropServices;
 
 /// <summary>
@@ -71,5 +72,20 @@ internal static class BugfenderNativeIos
 
     [DllImport("__Internal", EntryPoint = "BugfenderSetNetworkLoggingMaxRequestsPerMinute")]
     internal static extern void SetNetworkLoggingMaxRequestsPerMinute(int countOrNegative);
+
+    [DllImport("__Internal", EntryPoint = "BugfenderRegisterNetworkRequestObfuscationCallback")]
+    internal static extern void RegisterNetworkRequestObfuscationCallback(RequestObfuscationNativeDelegate callback);
+
+    [DllImport("__Internal", EntryPoint = "BugfenderRegisterNetworkResponseObfuscationCallback")]
+    internal static extern void RegisterNetworkResponseObfuscationCallback(ResponseObfuscationNativeDelegate callback);
+
+    [DllImport("__Internal", EntryPoint = "BugfenderSetNetworkLoggingRequestObfuscationHandlerEnabled")]
+    internal static extern void SetNetworkLoggingRequestObfuscationHandlerEnabled(bool enabled);
+
+    [DllImport("__Internal", EntryPoint = "BugfenderSetNetworkLoggingResponseObfuscationHandlerEnabled")]
+    internal static extern void SetNetworkLoggingResponseObfuscationHandlerEnabled(bool enabled);
+
+    internal delegate IntPtr RequestObfuscationNativeDelegate(IntPtr url, IntPtr headersJson, IntPtr body);
+    internal delegate IntPtr ResponseObfuscationNativeDelegate(IntPtr headersJson, IntPtr body);
 }
 #endif

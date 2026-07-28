@@ -4,9 +4,7 @@ All notable changes to this project are documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
-## [Unreleased]
-
-## [3.1.0]
+## [4.0.0]
 
 ### Added
 
@@ -21,17 +19,20 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   - `BugfenderHttpMessageHandler` for `HttpClient`
   - `BugfenderUnityWebRequest` helpers for `UnityWebRequest`
 - Correlation headers `X-Bugfender-Session-ID` and `X-Bugfender-Request-ID` are injected on instrumented requests when network logging is enabled.
-- Config APIs are also forwarded to the native Android / iOS SDKs (OkHttp / URLSession traffic).
+- Package Manager sample **Network Logging** (`Samples~/NetworkLogging`) demonstrating capture options, filters, rate limits, obfuscation, `HttpClient`, and `UnityWebRequest`.
 
 ### Changed
 
-- SDK reports build version `30100` to the Bugfender backend.
+- Bump native Android SDK to `4.+` and add `android-okhttp:4.+`.
+- Bump native iOS SDK SPM pin to `3.0.1`.
+- Config APIs are forwarded to the native Android / iOS SDKs (OkHttp / URLSession traffic).
+- SDK reports build version `40000` to the Bugfender backend.
 
 ### Compatibility
 
 - **Unity:** 2022.3 or later (including Unity 6).
-- **iOS:** Xcode 15+; requires a Bugfender iOS SDK that exposes network logging APIs (2.2+ / 3.x).
-- **Android:** Requires Bugfender Android SDK 3.6+ (already pulled by this package).
+- **iOS:** Xcode 15+; Bugfender iOS SDK 3.0.1+.
+- **Android:** Bugfender Android SDK 4.x + `android-okhttp` (pulled by this package).
 
 ### Documentation
 
@@ -40,7 +41,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Installation
 
-See [README.md](README.md). Quick UPM (git URL): `https://github.com/bugfender/BugfenderSDK-Unity.git` — optional pin: `#v3.1.0`.
+See [README.md](README.md). Quick UPM (git URL): `https://github.com/bugfender/BugfenderSDK-Unity.git` — optional pin: `#v4.0.0`.
 
 ## [3.0.1]
 
@@ -73,6 +74,5 @@ See [README.md](README.md). Quick UPM (git URL): `https://github.com/bugfender/B
 
 See [README.md](README.md). Quick UPM (git URL): `https://github.com/bugfender/BugfenderSDK-Unity.git` — optional pin: `#v3.0.1`.
 
-[Unreleased]: https://github.com/bugfender/BugfenderSDK-Unity/compare/v3.1.0...HEAD
-[3.1.0]: https://github.com/bugfender/BugfenderSDK-Unity/releases/tag/v3.1.0
+[4.0.0]: https://github.com/bugfender/BugfenderSDK-Unity/releases/tag/v4.0.0
 [3.0.1]: https://github.com/bugfender/BugfenderSDK-Unity/releases/tag/v3.0.1

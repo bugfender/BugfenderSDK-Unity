@@ -1,6 +1,6 @@
 {
   "name": "com.bugfender.unity",
-  "version": "3.1.0",
+  "version": "3.0.1",
   "displayName": "Bugfender",
   "description": "Unity bindings for the native Bugfender iOS and Android SDKs",
   "unity": "2022.3",
@@ -11,5 +11,12 @@
     "name": "Bugfender (Beenario GmbH)",
     "email": "support@bugfender.com",
     "url": "https://bugfender.com"
-  }
+  },
+  "samples": [
+    {
+      "displayName": "Network Logging",
+      "description": "Enable network capture, URL filters, rate limits, and request/response obfuscation handlers. Exercises HttpClient and UnityWebRequest helpers.",
+      "path": "Samples~/NetworkLogging"
+    }
+  ]
 }

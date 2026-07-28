@@ -36,6 +36,20 @@ Bugfender.SetNetworkLoggingURLFilter(
     allowlist: new[] { "https://api.example.com/*" },
     denylist: new[] { "*/secrets/*" });
 Bugfender.SetNetworkLoggingMaxRequestsPerMinute(60);
+
+// Redact secrets before logs are sent (also applied to native OkHttp / URLSession capture):
+Bugfender.SetNetworkLoggingRequestObfuscationHandler((url, headers, body) =>
+{
+    if (headers.ContainsKey("Authorization"))
+    {
+        headers["Authorization"] = "***";
+    }
+    return new NetworkRequestData(url, headers, body);
+});
+Bugfender.SetNetworkLoggingResponseObfuscationHandler((headers, body) =>
+{
+    return new NetworkResponseData(headers, body);
+});
 ```
 
 Unity does not have a single global HTTP stack. Instrument traffic with one of:
@@ -61,15 +75,15 @@ Or manually: `BugfenderUnityWebRequest.Prepare(request)` before send, then `Comp
 When network logging is enabled, instrumented requests also receive correlation headers:
 `X-Bugfender-Session-ID` and `X-Bugfender-Request-ID`.
 
-On Android/iOS the same config APIs are forwarded to the native SDKs (OkHttp / URLSession). Typical Unity game traffic still needs the C# helpers above.
+On Android/iOS the same config APIs (including obfuscation handlers) are forwarded to the native SDKs (OkHttp / URLSession). Typical Unity game traffic still needs the C# helpers above. Android ships `android-okhttp`; native OkHttp clients must add `BugfenderOkHttpInterceptor` (and optionally `BugfenderOkHttpEventListenerFactory`) themselves.
 
 ### Adjust the native Bugfender SDK versions
 This package imports the native Bugfender SDKs for iOS and Android using Swift Package Manager and Gradle.
 
 By default, the latest compatible versions are used. If you would like to tweak that, you can fork this project and edit these files:
 
-* For iOS: `Editor/IOSProjectBuildCustomizer.cs`
-* For Android: `Runtime/Plugins/Android/Bugfender.androidlib/build.gradle`
+* For iOS: `Editor/IOSProjectBuildCustomizer.cs` (SPM `3.0.1`+)
+* For Android: `Runtime/Plugins/Android/Bugfender.androidlib/build.gradle` (`com.bugfender.sdk:android:4.+` and `android-okhttp:4.+`)
 
 ## Changelog
 
@@ -77,6 +91,8 @@ See [CHANGELOG.md](CHANGELOG.md) for version history.
 
 ## Example project
 Check out this project to see Bugfender in action: https://github.com/bugfender/unity-demo
+
+This package also includes a **Network Logging** sample (Package Manager → Bugfender → Samples) that configures capture, filters, rate limits, and obfuscation handlers for `HttpClient` and `UnityWebRequest`.
 
 ## Testing
 See `TESTING.md` for a manual validation checklist for Unity import, Android builds, iOS builds, and runtime verification.

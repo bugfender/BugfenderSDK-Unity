@@ -342,4 +342,198 @@ internal static class NetworkLoggingUtils
         sb.Append('"');
         return sb.ToString();
     }
+
+    public static string SerializeStringMap(IDictionary<string, string> headers)
+    {
+        var sb = new StringBuilder();
+        sb.Append('{');
+        if (headers != null)
+        {
+            var first = true;
+            foreach (var pair in headers)
+            {
+                if (pair.Key == null)
+                {
+                    continue;
+                }
+
+                if (!first)
+                {
+                    sb.Append(',');
+                }
+
+                first = false;
+                sb.Append(EscapeJson(pair.Key));
+                sb.Append(':');
+                sb.Append(EscapeJson(pair.Value ?? string.Empty));
+            }
+        }
+
+        sb.Append('}');
+        return sb.ToString();
+    }
+
+    public static Dictionary<string, string> ParseStringMapJson(string json)
+    {
+        var result = new Dictionary<string, string>(StringComparer.Ordinal);
+        if (string.IsNullOrWhiteSpace(json))
+        {
+            return result;
+        }
+
+        var i = 0;
+        SkipWs(json, ref i);
+        if (i >= json.Length || json[i] != '{')
+        {
+            return result;
+        }
+
+        i++;
+        while (i < json.Length)
+        {
+            SkipWs(json, ref i);
+            if (i < json.Length && json[i] == '}')
+            {
+                break;
+            }
+
+            if (!TryParseJsonString(json, ref i, out var key))
+            {
+                break;
+            }
+
+            SkipWs(json, ref i);
+            if (i >= json.Length || json[i] != ':')
+            {
+                break;
+            }
+
+            i++;
+            SkipWs(json, ref i);
+            if (!TryParseJsonStringOrNull(json, ref i, out var value))
+            {
+                break;
+            }
+
+            result[key] = value ?? string.Empty;
+            SkipWs(json, ref i);
+            if (i < json.Length && json[i] == ',')
+            {
+                i++;
+            }
+        }
+
+        return result;
+    }
+
+    public static string BuildRequestObfuscationPayload(string url, IDictionary<string, string> headers, string body)
+    {
+        var sb = new StringBuilder();
+        sb.Append("{\"url\":");
+        sb.Append(EscapeJson(url ?? string.Empty));
+        sb.Append(",\"headers\":");
+        sb.Append(SerializeStringMap(headers));
+        sb.Append(",\"body\":");
+        sb.Append(body == null ? "null" : EscapeJson(body));
+        sb.Append('}');
+        return sb.ToString();
+    }
+
+    public static string BuildResponseObfuscationPayload(IDictionary<string, string> headers, string body)
+    {
+        var sb = new StringBuilder();
+        sb.Append("{\"headers\":");
+        sb.Append(SerializeStringMap(headers));
+        sb.Append(",\"body\":");
+        sb.Append(body == null ? "null" : EscapeJson(body));
+        sb.Append('}');
+        return sb.ToString();
+    }
+
+    private static void SkipWs(string json, ref int i)
+    {
+        while (i < json.Length && char.IsWhiteSpace(json[i]))
+        {
+            i++;
+        }
+    }
+
+    private static bool TryParseJsonString(string json, ref int i, out string value)
+    {
+        value = null;
+        SkipWs(json, ref i);
+        if (i >= json.Length || json[i] != '"')
+        {
+            return false;
+        }
+
+        i++;
+        var sb = new StringBuilder();
+        while (i < json.Length)
+        {
+            var c = json[i++];
+            if (c == '"')
+            {
+                value = sb.ToString();
+                return true;
+            }
+
+            if (c != '\\' || i >= json.Length)
+            {
+                sb.Append(c);
+                continue;
+            }
+
+            var escaped = json[i++];
+            switch (escaped)
+            {
+                case '"':
+                case '\\':
+                case '/':
+                    sb.Append(escaped);
+                    break;
+                case 'b':
+                    sb.Append('\b');
+                    break;
+                case 'f':
+                    sb.Append('\f');
+                    break;
+                case 'n':
+                    sb.Append('\n');
+                    break;
+                case 'r':
+                    sb.Append('\r');
+                    break;
+                case 't':
+                    sb.Append('\t');
+                    break;
+                case 'u':
+                    if (i + 4 <= json.Length
+                        && int.TryParse(json.Substring(i, 4), System.Globalization.NumberStyles.HexNumber, null, out var code))
+                    {
+                        sb.Append((char)code);
+                        i += 4;
+                    }
+                    break;
+                default:
+                    sb.Append(escaped);
+                    break;
+            }
+        }
+
+        return false;
+    }
+
+    private static bool TryParseJsonStringOrNull(string json, ref int i, out string value)
+    {
+        value = null;
+        SkipWs(json, ref i);
+        if (i + 4 <= json.Length && string.Compare(json, i, "null", 0, 4, StringComparison.Ordinal) == 0)
+        {
+            i += 4;
+            return true;
+        }
+
+        return TryParseJsonString(json, ref i, out value);
+    }
 }

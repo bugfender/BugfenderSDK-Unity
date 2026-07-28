@@ -5,7 +5,7 @@ using UnityEngine.Diagnostics;
 
 public class Bugfender : MonoBehaviour {
     private const string SDK_TYPE = "unity";
-    private const int SDK_TYPE_VERSION = 30100;
+    private const int SDK_TYPE_VERSION = 40000;
 
     public string APP_KEY;
     public bool ENABLE_UI_EVENT_LOGGING = false;
