@@ -57,6 +57,30 @@ Expected result:
 4. Confirm Bugfender initializes successfully.
 5. Send a test log and verify it appears in Bugfender.
 
+## Network logging checks
+
+1. Call `Bugfender.SetNetworkLoggingEnabled(true)` after init.
+2. Register obfuscation handlers and confirm sensitive headers/bodies are redacted:
+   ```csharp
+   Bugfender.SetNetworkLoggingRequestObfuscationHandler((url, headers, body) =>
+   {
+       if (headers.ContainsKey("Authorization"))
+           headers["Authorization"] = "***";
+       return new NetworkRequestData(url, headers, body);
+   });
+   Bugfender.SetNetworkLoggingResponseObfuscationHandler((headers, body) =>
+       new NetworkResponseData(headers, body));
+   ```
+3. Send an HTTP request with either:
+   - `new HttpClient(new BugfenderHttpMessageHandler())`, or
+   - `yield return BugfenderUnityWebRequest.Send(request)`
+4. Confirm a log with tag `bf_network` appears in the device session.
+5. Confirm the JSON payload includes `url`, `method`, `request_id`, `start_time`, `duration_ms`, `request_headers`, `response_headers`, and `timing`.
+6. Confirm instrumented requests include `X-Bugfender-Request-ID` (and `X-Bugfender-Session-ID` when a session id is available).
+7. Optional: enable body capture / error-body capture and verify bodies appear only as configured.
+8. Optional: set an allowlist/denylist and rate limit and verify filtering.
+9. On device builds, confirm Gradle resolves `com.bugfender.sdk:android:4.+` and `android-okhttp:4.+`, and iOS SPM resolves BugfenderSDK-iOS `3.0.1`+.
+
 ## What to capture on failure
 
 When reporting a failure, include:
