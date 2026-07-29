@@ -1,4 +1,5 @@
 #if UNITY_IOS && !UNITY_EDITOR
+using System;
 using System.Runtime.InteropServices;
 
 /// <summary>
@@ -53,5 +54,38 @@ internal static class BugfenderNativeIos
 
     [DllImport("__Internal", EntryPoint = "BugfenderForceSendOnce")]
     internal static extern void ForceSendOnce();
+
+    [DllImport("__Internal", EntryPoint = "BugfenderGetSessionIdentifier")]
+    internal static extern string GetSessionIdentifier();
+
+    [DllImport("__Internal", EntryPoint = "BugfenderSetNetworkLoggingEnabled")]
+    internal static extern void SetNetworkLoggingEnabled(bool enabled);
+
+    [DllImport("__Internal", EntryPoint = "BugfenderSetNetworkLoggingCaptureBodies")]
+    internal static extern void SetNetworkLoggingCaptureBodies(bool capture);
+
+    [DllImport("__Internal", EntryPoint = "BugfenderSetNetworkLoggingCaptureErrorResponseBodies")]
+    internal static extern void SetNetworkLoggingCaptureErrorResponseBodies(bool capture);
+
+    [DllImport("__Internal", EntryPoint = "BugfenderSetNetworkLoggingURLFilter")]
+    internal static extern void SetNetworkLoggingURLFilter(string allowlistJoined, string denylistJoined);
+
+    [DllImport("__Internal", EntryPoint = "BugfenderSetNetworkLoggingMaxRequestsPerMinute")]
+    internal static extern void SetNetworkLoggingMaxRequestsPerMinute(int countOrNegative);
+
+    [DllImport("__Internal", EntryPoint = "BugfenderRegisterNetworkRequestObfuscationCallback")]
+    internal static extern void RegisterNetworkRequestObfuscationCallback(RequestObfuscationNativeDelegate callback);
+
+    [DllImport("__Internal", EntryPoint = "BugfenderRegisterNetworkResponseObfuscationCallback")]
+    internal static extern void RegisterNetworkResponseObfuscationCallback(ResponseObfuscationNativeDelegate callback);
+
+    [DllImport("__Internal", EntryPoint = "BugfenderSetNetworkLoggingRequestObfuscationHandlerEnabled")]
+    internal static extern void SetNetworkLoggingRequestObfuscationHandlerEnabled(bool enabled);
+
+    [DllImport("__Internal", EntryPoint = "BugfenderSetNetworkLoggingResponseObfuscationHandlerEnabled")]
+    internal static extern void SetNetworkLoggingResponseObfuscationHandlerEnabled(bool enabled);
+
+    internal delegate IntPtr RequestObfuscationNativeDelegate(IntPtr url, IntPtr headersJson, IntPtr body);
+    internal delegate IntPtr ResponseObfuscationNativeDelegate(IntPtr headersJson, IntPtr body);
 }
 #endif

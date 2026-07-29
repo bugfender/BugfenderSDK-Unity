@@ -1,9 +1,13 @@
+using System;
+using System.Collections.Concurrent;
+using System.Collections.Generic;
+using System.Threading;
 using UnityEngine;
 using UnityEngine.Diagnostics;
 
 public class Bugfender : MonoBehaviour {
     private const string SDK_TYPE = "unity";
-    private const int SDK_TYPE_VERSION = 30001;
+    private const int SDK_TYPE_VERSION = 40000;
 
     public string APP_KEY;
     public bool ENABLE_UI_EVENT_LOGGING = false;
@@ -16,6 +20,11 @@ public class Bugfender : MonoBehaviour {
 
     public enum LogLevel { Debug, Warning, Error, Trace, Info, Fatal };
 
+    private static int _mainThreadId;
+    private static SynchronizationContext _unitySynchronizationContext;
+    private static readonly ConcurrentQueue<Action> _mainThreadActions = new ConcurrentQueue<Action>();
+    private static Bugfender _instance;
+
     private static bool BugfenderResourceFlagTrue(string resourceName)
     {
         var asset = Resources.Load<TextAsset>(resourceName);
@@ -25,6 +34,85 @@ public class Bugfender : MonoBehaviour {
     private static bool ResourcesWantNativeLogCapture()
     {
         return BugfenderResourceFlagTrue("bugfender_native_log_capture");
+    }
+
+    /// <summary>
+    /// AndroidJava / JNI must run on the Unity main thread.
+    /// HttpClient continuations (and OkHttp callbacks) often run elsewhere.
+    private static void RunOnMainThread(Action action)
+    {
+        if (action == null)
+        {
+            return;
+        }
+
+        if (_mainThreadId == 0 || Thread.CurrentThread.ManagedThreadId == _mainThreadId)
+        {
+            action();
+            return;
+        }
+
+        // Prefer UnitySynchronizationContext — survives scene unloads (unlike Update on a scene object).
+        var context = _unitySynchronizationContext;
+        if (context != null)
+        {
+            context.Post(_ =>
+            {
+                try
+                {
+                    action();
+                }
+                catch (Exception ex)
+                {
+                    Debug.LogWarning("[BF] Main-thread action failed: " + ex.Message);
+                }
+            }, null);
+            return;
+        }
+
+        _mainThreadActions.Enqueue(action);
+    }
+
+    void Awake()
+    {
+        if (_instance != null && _instance != this)
+        {
+            Destroy(gameObject);
+            return;
+        }
+
+        _instance = this;
+        _mainThreadId = Thread.CurrentThread.ManagedThreadId;
+        if (SynchronizationContext.Current != null)
+        {
+            _unitySynchronizationContext = SynchronizationContext.Current;
+        }
+
+        // Keep the dispatcher (and native AndroidJavaClass holder) across scene loads.
+        DontDestroyOnLoad(gameObject);
+    }
+
+    void OnDestroy()
+    {
+        if (_instance == this)
+        {
+            _instance = null;
+        }
+    }
+
+    void Update()
+    {
+        while (_mainThreadActions.TryDequeue(out var action))
+        {
+            try
+            {
+                action();
+            }
+            catch (Exception ex)
+            {
+                Debug.LogWarning("[BF] Main-thread action failed: " + ex.Message);
+            }
+        }
     }
 
 #if UNITY_ANDROID && !UNITY_EDITOR
@@ -101,6 +189,7 @@ public class Bugfender : MonoBehaviour {
                 BugfenderNativeIos.EnableNSLogLogging();
         }
 #endif
+        ConfigureNetworkLoggingRuntime();
         /* Some examples on how to use Bugfender:
          *   Bugfender.Log("BF Initialized");
          *   Bugfender.SetDeviceString("key","value");
@@ -109,6 +198,55 @@ public class Bugfender : MonoBehaviour {
          *    Bugfender.SendIssue("test", "this is a test");
          *    Utils.ForceCrash(ForcedCrashCategory.Abort); // test crash
         */
+    }
+
+    private void ConfigureNetworkLoggingRuntime()
+    {
+        NetworkLoggingManager.Configure(TryGetSessionIdentifier, string.IsNullOrWhiteSpace(API_URL) ? null : API_URL);
+    }
+
+    private static string TryGetSessionIdentifier()
+    {
+#if UNITY_IOS && !UNITY_EDITOR
+        try
+        {
+            var native = BugfenderNativeIos.GetSessionIdentifier();
+            if (!string.IsNullOrEmpty(native))
+            {
+                return native;
+            }
+        }
+        catch
+        {
+            // fall through to URL parsing
+        }
+#endif
+        var sessionUrl = SessionIdentifierUrl();
+        return ExtractIdentifierFromDashboardUrl(sessionUrl, "session");
+    }
+
+    private static string ExtractIdentifierFromDashboardUrl(string url, string type)
+    {
+        if (string.IsNullOrEmpty(url) || string.IsNullOrEmpty(type))
+        {
+            return null;
+        }
+
+        var marker = "/" + type + "/";
+        var index = url.LastIndexOf(marker, StringComparison.OrdinalIgnoreCase);
+        if (index < 0)
+        {
+            return null;
+        }
+
+        var id = url.Substring(index + marker.Length);
+        var query = id.IndexOfAny(new[] { '?', '#' });
+        if (query >= 0)
+        {
+            id = id.Substring(0, query);
+        }
+
+        return id.Trim('/');
     }
 
     public static void SetDeviceString(string key, string value)
@@ -162,11 +300,30 @@ public class Bugfender : MonoBehaviour {
     public static void Log(LogLevel logLevel, string tag, string message)
     {
 #if UNITY_ANDROID && !UNITY_EDITOR
-        if (bugfender != null) {
-        AndroidJavaClass levelClass = new AndroidJavaClass ("com.bugfender.sdk.LogLevel");
-            AndroidJavaObject level = levelClass.GetStatic<AndroidJavaObject>(logLevel.ToString());
-            bugfender.CallStatic ("log", 0, "", "", level, tag, message);
-        }
+        // Capture args; network Emit often calls this from a thread-pool continuation.
+        var levelName = logLevel.ToString();
+        var logTag = tag ?? string.Empty;
+        var logMessage = message ?? string.Empty;
+        RunOnMainThread(() =>
+        {
+            if (bugfender == null)
+            {
+                return;
+            }
+
+            try
+            {
+                using (var levelClass = new AndroidJavaClass("com.bugfender.sdk.LogLevel"))
+                {
+                    var level = levelClass.GetStatic<AndroidJavaObject>(levelName);
+                    bugfender.CallStatic("log", 0, "", "", level, logTag, logMessage);
+                }
+            }
+            catch (Exception ex)
+            {
+                Debug.LogWarning("[BF] Log failed: " + ex.Message);
+            }
+        });
 #elif UNITY_IOS && !UNITY_EDITOR
         int intLevel = (int)logLevel;
         BugfenderNativeIos.Log(intLevel, tag, message);
@@ -278,9 +435,12 @@ public class Bugfender : MonoBehaviour {
     public static void ForceSendOnce()
     {
 #if UNITY_ANDROID && !UNITY_EDITOR
-        if (bugfender != null) {
-            bugfender.CallStatic ("forceSendOnce");
-        }
+        RunOnMainThread(() =>
+        {
+            if (bugfender != null) {
+                try { bugfender.CallStatic ("forceSendOnce"); } catch (Exception) { }
+            }
+        });
 #elif UNITY_IOS && !UNITY_EDITOR
         BugfenderNativeIos.ForceSendOnce();
 #else
@@ -299,6 +459,204 @@ public class Bugfender : MonoBehaviour {
 #else
         Debug.Log("[BF] Set SDK type: " + sdkType + " version: " + version);
 #endif
+    }
+
+    /// <summary>
+    /// Enable or disable network request/response capture. Defaults to <c>false</c>.
+    /// Captured entries are sent as logs tagged <c>bf_network</c>.
+    /// </summary>
+    /// <remarks>
+    /// Unity has no global HTTP interceptor. Use <see cref="BugfenderHttpMessageHandler"/> for
+    /// <c>HttpClient</c>, <see cref="BugfenderUnityWebRequest"/> for <c>UnityWebRequest</c>,
+    /// or <see cref="LogNetwork"/> for other HTTP stacks. On Android/iOS this also forwards
+    /// the setting to the native SDK (OkHttp / URLSession traffic).
+    /// </remarks>
+    public static void SetNetworkLoggingEnabled(bool enabled)
+    {
+        NetworkLoggingManager.SetEnabled(enabled);
+#if UNITY_ANDROID && !UNITY_EDITOR
+        if (bugfender != null) {
+            try { bugfender.CallStatic("setNetworkLoggingEnabled", enabled); } catch (AndroidJavaException) { }
+        }
+#elif UNITY_IOS && !UNITY_EDITOR
+        BugfenderNativeIos.SetNetworkLoggingEnabled(enabled);
+#else
+        Debug.Log("[BF] Set network logging enabled: " + enabled);
+#endif
+    }
+
+    /// <summary>
+    /// Capture request and response bodies (full mode). Defaults to <c>false</c>.
+    /// </summary>
+    public static void SetNetworkLoggingCaptureBodies(bool capture)
+    {
+        NetworkLoggingManager.SetCaptureBodies(capture);
+#if UNITY_ANDROID && !UNITY_EDITOR
+        if (bugfender != null) {
+            try { bugfender.CallStatic("setNetworkLoggingCaptureBodies", capture); } catch (AndroidJavaException) { }
+        }
+#elif UNITY_IOS && !UNITY_EDITOR
+        BugfenderNativeIos.SetNetworkLoggingCaptureBodies(capture);
+#else
+        Debug.Log("[BF] Set network logging capture bodies: " + capture);
+#endif
+    }
+
+    /// <summary>
+    /// Capture response bodies only for HTTP status codes &gt;= 400 when full body capture is disabled.
+    /// Defaults to <c>false</c>.
+    /// </summary>
+    public static void SetNetworkLoggingCaptureErrorResponseBodies(bool capture)
+    {
+        NetworkLoggingManager.SetCaptureErrorResponseBodies(capture);
+#if UNITY_ANDROID && !UNITY_EDITOR
+        if (bugfender != null) {
+            try { bugfender.CallStatic("setNetworkLoggingCaptureErrorResponseBodies", capture); } catch (AndroidJavaException) { }
+        }
+#elif UNITY_IOS && !UNITY_EDITOR
+        BugfenderNativeIos.SetNetworkLoggingCaptureErrorResponseBodies(capture);
+#else
+        Debug.Log("[BF] Set network logging capture error response bodies: " + capture);
+#endif
+    }
+
+    /// <summary>
+    /// Optional request obfuscation handler applied before a network log is sent.
+    /// </summary>
+    public static void SetNetworkLoggingRequestObfuscationHandler(NetworkLoggingRequestObfuscationHandler handler)
+    {
+        NetworkLoggingManager.SetRequestObfuscationHandler(handler);
+    }
+
+    /// <summary>
+    /// Optional response obfuscation handler applied before a network log is sent.
+    /// </summary>
+    public static void SetNetworkLoggingResponseObfuscationHandler(NetworkLoggingResponseObfuscationHandler handler)
+    {
+        NetworkLoggingManager.SetResponseObfuscationHandler(handler);
+    }
+
+    /// <summary>
+    /// Filter which URLs are captured. Patterns support plain substrings and wildcards
+    /// (for example <c>https://*.example.com/*</c>). Pass <c>null</c> for either list to leave that filter unset.
+    /// </summary>
+    public static void SetNetworkLoggingURLFilter(IList<string> allowlist, IList<string> denylist)
+    {
+        NetworkLoggingManager.SetURLFilter(allowlist, denylist);
+#if UNITY_ANDROID && !UNITY_EDITOR
+        if (bugfender != null) {
+            try
+            {
+                using (var javaAllow = ToJavaStringList(allowlist))
+                using (var javaDeny = ToJavaStringList(denylist))
+                {
+                    bugfender.CallStatic("setNetworkLoggingURLFilter", javaAllow, javaDeny);
+                }
+            }
+            catch (AndroidJavaException) { }
+        }
+#elif UNITY_IOS && !UNITY_EDITOR
+        BugfenderNativeIos.SetNetworkLoggingURLFilter(
+            JoinPatterns(allowlist),
+            JoinPatterns(denylist));
+#else
+        Debug.Log("[BF] Set network logging URL filter");
+#endif
+    }
+
+    /// <summary>
+    /// Limit how many network logs are captured per calendar minute. Pass <c>null</c> to disable the limit.
+    /// </summary>
+    public static void SetNetworkLoggingMaxRequestsPerMinute(int? count)
+    {
+        NetworkLoggingManager.SetMaxRequestsPerMinute(count);
+#if UNITY_ANDROID && !UNITY_EDITOR
+        if (bugfender != null) {
+            try
+            {
+                if (count.HasValue)
+                {
+                    using (var boxed = new AndroidJavaObject("java.lang.Integer", count.Value))
+                    {
+                        bugfender.CallStatic("setNetworkLoggingMaxRequestsPerMinute", boxed);
+                    }
+                }
+                else
+                {
+                    bugfender.CallStatic("setNetworkLoggingMaxRequestsPerMinute", null as AndroidJavaObject);
+                }
+            }
+            catch (AndroidJavaException) { }
+        }
+#elif UNITY_IOS && !UNITY_EDITOR
+        BugfenderNativeIos.SetNetworkLoggingMaxRequestsPerMinute(count.HasValue ? count.Value : -1);
+#else
+        Debug.Log("[BF] Set network logging max requests per minute: " + count);
+#endif
+    }
+
+    /// <summary>
+    /// Manually log a network request. Use this for HTTP stacks that are not
+    /// <c>HttpClient</c> / <c>UnityWebRequest</c> (for example BestHTTP).
+    /// Always emits when called; does not apply URL filters or rate limits.
+    /// </summary>
+    public static void LogNetwork(NetworkLogEntry entry)
+    {
+        if (entry == null)
+        {
+            return;
+        }
+
+        if (string.IsNullOrEmpty(entry.RequestId))
+        {
+            entry.RequestId = NetworkLoggingManager.CreateRequestId();
+        }
+
+        if (entry.RequestHeaders == null)
+        {
+            entry.RequestHeaders = new Dictionary<string, string>();
+        }
+
+        if (entry.ResponseHeaders == null)
+        {
+            entry.ResponseHeaders = new Dictionary<string, string>();
+        }
+
+        NetworkLoggingManager.Emit(entry);
+    }
+
+#if UNITY_ANDROID && !UNITY_EDITOR
+    private static AndroidJavaObject ToJavaStringList(IList<string> items)
+    {
+        if (items == null)
+        {
+            return null;
+        }
+
+        var list = new AndroidJavaObject("java.util.ArrayList");
+        using (var bridge = new AndroidJavaClass("com.bugfender.unity.androidlib.UnityNetworkObfuscationBridge"))
+        {
+            foreach (var item in items)
+            {
+                if (item != null)
+                {
+                    bridge.CallStatic("listAddString", list, item);
+                }
+            }
+        }
+
+        return list;
+    }
+#endif
+
+    private static string JoinPatterns(IList<string> patterns)
+    {
+        if (patterns == null || patterns.Count == 0)
+        {
+            return null;
+        }
+
+        return string.Join("\n", patterns);
     }
 
 }

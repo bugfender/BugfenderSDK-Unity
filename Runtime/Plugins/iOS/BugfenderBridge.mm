@@ -1,5 +1,7 @@
 #import <Foundation/Foundation.h>
 #import <BugfenderSDK/BugfenderSDK.h>
+#include <stdlib.h>
+#include <string.h>
 
 NSString* convertCStringToNSString(const char* s)
 {
@@ -108,6 +110,195 @@ void BugfenderSetForceEnabled(bool enabled) {
 
 void BugfenderForceSendOnce() {
     [Bugfender forceSendOnce];
+}
+
+char* BugfenderGetSessionIdentifier() {
+    // sessionIdentifier is deprecated but still the reliable UUID source for correlation headers.
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wdeprecated-declarations"
+    NSString* sessionId = [Bugfender sessionIdentifier];
+#pragma clang diagnostic pop
+    return convertNSStringToCString(sessionId);
+}
+
+void BugfenderSetNetworkLoggingEnabled(bool enabled) {
+    if ([Bugfender respondsToSelector:@selector(setNetworkLoggingEnabled:)]) {
+        [Bugfender setNetworkLoggingEnabled:enabled];
+    }
+}
+
+void BugfenderSetNetworkLoggingCaptureBodies(bool capture) {
+    if ([Bugfender respondsToSelector:@selector(setNetworkLoggingCaptureBodies:)]) {
+        [Bugfender setNetworkLoggingCaptureBodies:capture];
+    }
+}
+
+void BugfenderSetNetworkLoggingCaptureErrorResponseBodies(bool capture) {
+    if ([Bugfender respondsToSelector:@selector(setNetworkLoggingCaptureErrorResponseBodies:)]) {
+        [Bugfender setNetworkLoggingCaptureErrorResponseBodies:capture];
+    }
+}
+
+NSArray<NSString *>* patternsFromJoinedString(const char* joined) {
+    NSString* text = convertCStringToNSString(joined);
+    if (text.length == 0) {
+        return nil;
+    }
+    NSArray<NSString *>* parts = [text componentsSeparatedByString:@"\n"];
+    NSMutableArray<NSString *>* patterns = [NSMutableArray array];
+    for (NSString* part in parts) {
+        NSString* trimmed = [part stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceAndNewlineCharacterSet]];
+        if (trimmed.length > 0) {
+            [patterns addObject:trimmed];
+        }
+    }
+    return patterns.count > 0 ? patterns : nil;
+}
+
+void BugfenderSetNetworkLoggingURLFilter(const char* allowlistJoined, const char* denylistJoined) {
+    if (![Bugfender respondsToSelector:@selector(setNetworkLoggingURLFilterWithAllowlist:denylist:)]) {
+        return;
+    }
+    [Bugfender setNetworkLoggingURLFilterWithAllowlist:patternsFromJoinedString(allowlistJoined)
+                                              denylist:patternsFromJoinedString(denylistJoined)];
+}
+
+void BugfenderSetNetworkLoggingMaxRequestsPerMinute(int countOrNegative) {
+    if (![Bugfender respondsToSelector:@selector(setNetworkLoggingMaxRequestsPerMinute:)]) {
+        return;
+    }
+    NSNumber* value = countOrNegative < 0 ? nil : @(countOrNegative);
+    [Bugfender setNetworkLoggingMaxRequestsPerMinute:value];
+}
+
+typedef char* (*BugfenderUnityRequestObfuscationCallback)(const char* url, const char* headersJson, const char* body);
+typedef char* (*BugfenderUnityResponseObfuscationCallback)(const char* headersJson, const char* body);
+
+static BugfenderUnityRequestObfuscationCallback s_requestObfuscationCallback = NULL;
+static BugfenderUnityResponseObfuscationCallback s_responseObfuscationCallback = NULL;
+
+static NSString* jsonFromDictionary(NSDictionary<NSString *, NSString *>* headers) {
+    NSDictionary* source = headers ?: @{};
+    NSData* data = [NSJSONSerialization dataWithJSONObject:source options:0 error:nil];
+    if (data == nil) {
+        return @"{}";
+    }
+    return [[NSString alloc] initWithData:data encoding:NSUTF8StringEncoding] ?: @"{}";
+}
+
+static NSDictionary* parseObfuscationPayload(const char* jsonCString) {
+    if (jsonCString == NULL) {
+        return nil;
+    }
+    NSString* json = [NSString stringWithUTF8String:jsonCString];
+    free((void*)jsonCString);
+    if (json.length == 0) {
+        return nil;
+    }
+    NSData* data = [json dataUsingEncoding:NSUTF8StringEncoding];
+    if (data == nil) {
+        return nil;
+    }
+    id object = [NSJSONSerialization JSONObjectWithData:data options:0 error:nil];
+    return [object isKindOfClass:[NSDictionary class]] ? (NSDictionary*)object : nil;
+}
+
+void BugfenderRegisterNetworkRequestObfuscationCallback(BugfenderUnityRequestObfuscationCallback callback) {
+    s_requestObfuscationCallback = callback;
+}
+
+void BugfenderRegisterNetworkResponseObfuscationCallback(BugfenderUnityResponseObfuscationCallback callback) {
+    s_responseObfuscationCallback = callback;
+}
+
+void BugfenderSetNetworkLoggingRequestObfuscationHandlerEnabled(bool enabled) {
+    if (![Bugfender respondsToSelector:@selector(setNetworkLoggingRequestObfuscationHandler:)]) {
+        return;
+    }
+    if (!enabled) {
+        [Bugfender setNetworkLoggingRequestObfuscationHandler:nil];
+        return;
+    }
+    [Bugfender setNetworkLoggingRequestObfuscationHandler:^BFNetworkRequestData * _Nonnull(NSString * _Nonnull url, NSDictionary<NSString *,NSString *> * _Nonnull headers, NSString * _Nullable body) {
+        if (s_requestObfuscationCallback == NULL) {
+            return [[BFNetworkRequestData alloc] initWithURL:url headers:headers body:body];
+        }
+        NSString* headersJson = jsonFromDictionary(headers);
+        char* resultC = s_requestObfuscationCallback(
+            [url UTF8String],
+            [headersJson UTF8String],
+            body != nil ? [body UTF8String] : NULL);
+        NSDictionary* payload = parseObfuscationPayload(resultC);
+        if (payload == nil) {
+            return [[BFNetworkRequestData alloc] initWithURL:url headers:headers body:body];
+        }
+        NSString* obfuscatedUrl = [payload[@"url"] isKindOfClass:[NSString class]] ? payload[@"url"] : url;
+        NSDictionary<NSString *, NSString *>* obfuscatedHeaders = headers;
+        id headersValue = payload[@"headers"];
+        if ([headersValue isKindOfClass:[NSDictionary class]]) {
+            NSMutableDictionary<NSString *, NSString *>* mapped = [NSMutableDictionary dictionary];
+            for (id key in (NSDictionary*)headersValue) {
+                if (![key isKindOfClass:[NSString class]]) {
+                    continue;
+                }
+                id value = ((NSDictionary*)headersValue)[key];
+                mapped[(NSString*)key] = [value isKindOfClass:[NSString class]] ? (NSString*)value : (value ? [value description] : @"");
+            }
+            obfuscatedHeaders = mapped;
+        }
+        NSString* obfuscatedBody = body;
+        id bodyValue = payload[@"body"];
+        if (bodyValue == nil || bodyValue == [NSNull null]) {
+            obfuscatedBody = nil;
+        } else if ([bodyValue isKindOfClass:[NSString class]]) {
+            obfuscatedBody = (NSString*)bodyValue;
+        }
+        return [[BFNetworkRequestData alloc] initWithURL:obfuscatedUrl headers:obfuscatedHeaders body:obfuscatedBody];
+    }];
+}
+
+void BugfenderSetNetworkLoggingResponseObfuscationHandlerEnabled(bool enabled) {
+    if (![Bugfender respondsToSelector:@selector(setNetworkLoggingResponseObfuscationHandler:)]) {
+        return;
+    }
+    if (!enabled) {
+        [Bugfender setNetworkLoggingResponseObfuscationHandler:nil];
+        return;
+    }
+    [Bugfender setNetworkLoggingResponseObfuscationHandler:^BFNetworkResponseData * _Nonnull(NSDictionary<NSString *,NSString *> * _Nonnull headers, NSString * _Nullable body) {
+        if (s_responseObfuscationCallback == NULL) {
+            return [[BFNetworkResponseData alloc] initWithHeaders:headers body:body];
+        }
+        NSString* headersJson = jsonFromDictionary(headers);
+        char* resultC = s_responseObfuscationCallback(
+            [headersJson UTF8String],
+            body != nil ? [body UTF8String] : NULL);
+        NSDictionary* payload = parseObfuscationPayload(resultC);
+        if (payload == nil) {
+            return [[BFNetworkResponseData alloc] initWithHeaders:headers body:body];
+        }
+        NSDictionary<NSString *, NSString *>* obfuscatedHeaders = headers;
+        id headersValue = payload[@"headers"];
+        if ([headersValue isKindOfClass:[NSDictionary class]]) {
+            NSMutableDictionary<NSString *, NSString *>* mapped = [NSMutableDictionary dictionary];
+            for (id key in (NSDictionary*)headersValue) {
+                if (![key isKindOfClass:[NSString class]]) {
+                    continue;
+                }
+                id value = ((NSDictionary*)headersValue)[key];
+                mapped[(NSString*)key] = [value isKindOfClass:[NSString class]] ? (NSString*)value : (value ? [value description] : @"");
+            }
+            obfuscatedHeaders = mapped;
+        }
+        NSString* obfuscatedBody = body;
+        id bodyValue = payload[@"body"];
+        if (bodyValue == nil || bodyValue == [NSNull null]) {
+            obfuscatedBody = nil;
+        } else if ([bodyValue isKindOfClass:[NSString class]]) {
+            obfuscatedBody = (NSString*)bodyValue;
+        }
+        return [[BFNetworkResponseData alloc] initWithHeaders:obfuscatedHeaders body:obfuscatedBody];
+    }];
 }
 
 }
